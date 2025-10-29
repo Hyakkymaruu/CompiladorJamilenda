@@ -1,0 +1,15 @@
+mlp/Erros/Diagnostico.class
+mlp/Simbolos/TabelaSimbolos$TipoSimples.class
+mlp/Semantico/AnalisadorSemantico.class
+mlp/Main$1.class
+mlp/Erros/Diagnostico$Tipo.class
+mlp/Lexico/Token.class
+mlp/Sintatico/AnalisadorSintatico.class
+mlp/Simbolos/TabelaSimbolos.class
+mlp/ast/AstNode.class
+mlp/Lexico/AnalisadorLexico.class
+mlp/Simbolos/TabelaSimbolos$Entrada.class
+mlp/Lexico/TokenTipo.class
+mlp/Sintatico/AnalisadorSintatico$1.class
+mlp/Main.class
+mlp/Semantico/AnalisadorSemantico$1.class

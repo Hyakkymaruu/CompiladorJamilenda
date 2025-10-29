@@ -1,0 +1,12 @@
+$
+inteiro a, b;
+real r;
+caracter c;
+
+a = 7;
+b = 3;
+c = a;            // caractere não está especificado na MLP como literal; usamos var
+
+se ( (a <= 10) E (b != 0) ) entao r = a / b; senao r = 0; ;
+enquanto ( (a <= 10) OU NAO (b == 3) ) a = a RESTO b; ;
+$.

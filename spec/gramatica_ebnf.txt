@@ -1,0 +1,34 @@
+programa        = inicio , { declar } , { comando } , fim ;
+inicio          = START ;
+fim             = END ;
+
+declar          = tipo , listaIdent , PONTO_VIRG ;
+tipo            = KW_INTEIRO | KW_REAL | KW_CARACTER ;
+listaIdent      = IDENT , { VIRGULA , IDENT } ;
+
+comando         = cmdAtr | cmdSe | cmdEnquanto ;
+
+cmdAtr          = IDENT , OP_ATRIB , expressao , PONTO_VIRG ;
+
+cmdSe           = KW_SE , ABRE_PAR , condicao , FECHA_PAR , KW_ENTAO , comando , 
+                  [ KW_SENAO , comando ] , PONTO_VIRG ;
+
+cmdEnquanto     = KW_ENQUANTO , ABRE_PAR , condicao , FECHA_PAR , comando , PONTO_VIRG ;
+
+(* Expressões numéricas *)
+expressao       = termo , { OP_MAIS , termo } ;
+termo           = fator , { (OP_MULT | OP_DIV | OP_RESTO) , fator } ;
+fator           = IDENT | NUM_INT | NUM_REAL | ABRE_PAR , expressao , FECHA_PAR ;
+
+(* Condições lógicas/relacionais *)
+condicao        = disjuncao ;
+disjuncao       = conjuncao , { KW_OU , conjuncao } ;
+conjuncao       = negacao , { KW_E , negacao } ;
+negacao         = { KW_NAO } , relacao ;
+
+relacao         = ABRE_PAR , relacao , FECHA_PAR 
+                | exprRel ;
+
+exprRel         = opndRel , opRel , opndRel ;
+opndRel         = IDENT | NUM_INT | NUM_REAL | ABRE_PAR , expressao , FECHA_PAR ;
+opRel           = OP_EQ | OP_NE | OP_LE | OP_GE | OP_LT | OP_GT ;
