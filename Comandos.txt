@@ -1,0 +1,11 @@
+=======================================================================================
+
+Gerar imagens dos automatos:
+
+dot -Tpng spec/automatos/ident_dfa.dot -o spec/automatos/ident_dfa.png
+dot -Tpng spec/automatos/num_int_dfa.dot -o spec/automatos/num_int_dfa.png
+dot -Tpng spec/automatos/num_real_dfa.dot -o spec/automatos/num_real_dfa.png
+dot -Tpng spec/automatos/keywords_dfa.dot -o spec/automatos/keywords_dfa.png
+dot -Tpng spec/automatos/op_rel_dfa.dot -o spec/automatos/op_rel_dfa.png
+dot -Tpng spec/automatos/op_arit_dfa.dot -o spec/automatos/op_arit_dfa.png
+dot -Tpng spec/automatos/atr_delims_dfa.dot -o spec/automatos/atr_delims_dfa.png

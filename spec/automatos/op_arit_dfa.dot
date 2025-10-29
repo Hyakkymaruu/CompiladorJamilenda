@@ -1,0 +1,18 @@
+digraph OP_ARIT_DFA {
+  rankdir=LR; node [shape=circle];
+
+  start [shape=point];
+  q0 [label="q0"];
+
+  qPLUS [label="+", shape=doublecircle];
+  qMULT [label="*", shape=doublecircle];
+  qDIV  [label="/", shape=doublecircle];
+
+  start -> q0;
+  q0 -> qPLUS [label="'+'"];
+  q0 -> qMULT [label="'*'"];
+  q0 -> qDIV  [label="'/'"];
+  q0 -> dead  [label="outros"];
+
+  dead [label="dead", shape=diamond];
+}

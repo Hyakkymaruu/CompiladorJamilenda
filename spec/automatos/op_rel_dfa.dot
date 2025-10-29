@@ -1,0 +1,37 @@
+digraph OP_REL_DFA {
+  rankdir=LR; node [shape=circle];
+
+  start [shape=point];
+  q0 [label="q0"];
+  qLT [label="<"];
+  qGT [label=">"];
+  qEQ [label="="];
+
+  qLE [label="<=", shape=doublecircle];
+  qGE [label=">=", shape=doublecircle];
+  qEE [label="==", shape=doublecircle];
+  qNE [label="!=", shape=doublecircle];
+  qL  [label="<",  shape=doublecircle];
+  qG  [label=">",  shape=doublecircle];
+
+  start -> q0;
+
+  q0 -> qLT [label="'<'"];
+  q0 -> qGT [label="'>'"];
+  q0 -> qEQ [label="'='"];
+  q0 -> qN1 [label="'!'"];
+  q0 -> dead [label="outros"];
+
+  qLT -> qLE [label="'='"];
+  qLT -> qL  [label="outros"];
+  qGT -> qGE [label="'='"];
+  qGT -> qG  [label="outros"];
+  qEQ -> qEE [label="'='"];
+  qEQ -> dead [label="outros"];
+
+  qN1 [label="!", shape=circle];
+  qN1 -> qNE [label="'='"];
+  qN1 -> dead [label="outros"];
+
+  dead [label="dead", shape=diamond];
+}

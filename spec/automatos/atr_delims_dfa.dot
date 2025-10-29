@@ -1,0 +1,34 @@
+digraph ATR_DELIMS_DFA {
+  rankdir=LR; node [shape=circle];
+
+  start [shape=point];
+  q0 [label="q0"];
+
+  // '=' atribuição (atenção: '==' é relacional, outro DFA)
+  qATR [label="=", shape=doublecircle];
+
+  // parênteses, vírgula, ponto e vírgula
+  qLP  [label="(", shape=doublecircle];
+  qRP  [label=")", shape=doublecircle];
+  qCOM [label=",", shape=doublecircle];
+  qSC  [label=";", shape=doublecircle];
+
+  // '$' e '$.'
+  qDS  [label="$", shape=doublecircle];   // START
+  qDSp [label="$.", shape=doublecircle];  // END
+
+  start -> q0;
+  q0 -> qATR [label="'='"];
+  q0 -> qLP  [label="'('"];
+  q0 -> qRP  [label="')'"];
+  q0 -> qCOM [label="','"];
+  q0 -> qSC  [label="';'"];
+  q0 -> qDS0 [label="'$'"];
+  q0 -> dead [label="outros"];
+
+  qDS0 [label="$ (parcial)"];
+  qDS0 -> qDSp [label="'.'"];
+  qDS0 -> qDS  [label="outros"]; // se não vier '.', fica como '$' (START)
+
+  dead [label="dead", shape=diamond];
+}

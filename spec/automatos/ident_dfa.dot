@@ -1,0 +1,17 @@
+digraph IDENT_DFA {
+  rankdir=LR;
+  node [shape=circle];
+
+  start [shape=point];
+  q0 [label="q0"];
+  q1 [label="q1", shape=doublecircle];
+
+  start -> q0;
+
+  q0 -> q1 [label="[A-Za-z]"];
+  q0 -> dead [label="outros"];
+  q1 -> q1 [label="[A-Za-z0-9]"];
+  q1 -> dead [label="outros"];
+
+  dead [label="dead", shape=diamond];
+}

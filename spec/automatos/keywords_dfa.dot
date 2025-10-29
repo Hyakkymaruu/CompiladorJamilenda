@@ -1,0 +1,86 @@
+digraph KW_DFA {
+  rankdir=LR; node [shape=circle];
+
+  start [shape=point];
+  s0 [label="s0"];
+  start -> s0;
+
+  // "se"
+  s0 -> s_se_s [label="s"];
+  s_se_s -> s_se_e [label="e"];
+  s_se_e [label="se", shape=doublecircle];
+
+  // "entao"
+  s0 -> s_en_e [label="e"];
+  s_en_e -> s_en_n [label="n"];
+  s_en_n -> s_en_t [label="t"];
+  s_en_t -> s_en_a [label="a"];
+  s_en_a -> s_en_o [label="o"];
+  s_en_o [label="entao", shape=doublecircle];
+
+  // "senao"
+  s_se_e -> s_sen_n [label="n"];
+  s_sen_n -> s_sen_a [label="a"];
+  s_sen_a -> s_sen_o [label="o"];
+  s_sen_o [label="senao", shape=doublecircle];
+
+  // "enquanto"
+  s_en_e -> s_enq_q [label="q"];
+  s_enq_q -> s_enq_u [label="u"];
+  s_enq_u -> s_enq_a [label="a"];
+  s_enq_a -> s_enq_n [label="n"];
+  s_enq_n -> s_enq_t [label="t"];
+  s_enq_t -> s_enq_o [label="o"];
+  s_enq_o [label="enquanto", shape=doublecircle];
+
+  // "inteiro"
+  s0 -> s_i_i [label="i"];
+  s_i_i -> s_i_n [label="n"];
+  s_i_n -> s_i_t [label="t"];
+  s_i_t -> s_i_e [label="e"];
+  s_i_e -> s_i_i2 [label="i"];
+  s_i_i2 -> s_i_r [label="r"];
+  s_i_r -> s_i_o [label="o"];
+  s_i_o [label="inteiro", shape=doublecircle];
+
+  // "real"
+  s0 -> s_r_r [label="r"];
+  s_r_r -> s_r_e [label="e"];
+  s_r_e -> s_r_a [label="a"];
+  s_r_a -> s_r_l [label="l"];
+  s_r_l [label="real", shape=doublecircle];
+
+  // "caracter"
+  s0 -> s_c_c [label="c"];
+  s_c_c -> s_c_a [label="a"];
+  s_c_a -> s_c_r [label="r"];
+  s_c_r -> s_c_a2 [label="a"];
+  s_c_a2 -> s_c_c2 [label="c"];
+  s_c_c2 -> s_c_t [label="t"];
+  s_c_t -> s_c_e [label="e"];
+  s_c_e -> s_c_r2 [label="r"];
+  s_c_r2 [label="caracter", shape=doublecircle];
+
+  // "E"
+  s0 -> s_E [label="E"];
+  s_E [label="E", shape=doublecircle];
+
+  // "OU"
+  s0 -> s_O [label="O"];
+  s_O -> s_OU [label="U"];
+  s_OU [label="OU", shape=doublecircle];
+
+  // "NAO"
+  s0 -> s_N [label="N"];
+  s_N -> s_NA [label="A"];
+  s_NA -> s_NAO [label="O"];
+  s_NAO [label="NAO", shape=doublecircle];
+
+  // "RESTO"
+  s0 -> s_R [label="R"];
+  s_R -> s_RE [label="E"];
+  s_RE -> s_RES [label="S"];
+  s_RES -> s_REST [label="T"];
+  s_REST -> s_RESTO [label="O"];
+  s_RESTO [label="RESTO", shape=doublecircle];
+}
