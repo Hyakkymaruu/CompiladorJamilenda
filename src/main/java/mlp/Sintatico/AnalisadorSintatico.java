@@ -14,6 +14,16 @@ import mlp.ast.AstNode;
 /** Parser LL(1) por descida recursiva para a MLP. */
 public class AnalisadorSintatico {
 
+    // ----------------- Debug -----------------
+    /** Ative para ver decisões do parser no console. */
+    private boolean DEBUG = true; // mude para true se quiser logar
+    public void setDebug(boolean value) { this.DEBUG = value; }
+    private void dbg(String msg) { if (DEBUG) System.out.println("[DBG] " + msg); }
+    private static String tokStr(Token t) {
+        if (t == null) return "<null>";
+        return t.getTipo() + "('" + t.getLexema() + "')@" + t.getLinha() + ":" + t.getColuna();
+    }
+
     // ----------------- Estado -----------------
     private final AnalisadorLexico lx;
     private Token atual;
@@ -24,6 +34,7 @@ public class AnalisadorSintatico {
     public AnalisadorSintatico(AnalisadorLexico lx) {
         this.lx = lx;
         this.atual = lx.proximo(); // priming
+        dbg("init lookahead=" + tokStr(atual));
     }
 
     public List<Diagnostico> getDiagnosticos() { return diagnosticos; }
@@ -87,10 +98,17 @@ public class AnalisadorSintatico {
 
     /** comando = cmdAtr | cmdSe | cmdEnquanto */
     private AstNode parseComando() {
+        dbg("parseComando lookahead=" + tokStr(atual));
         switch (atual.getTipo()) {
-            case IDENT:       return parseCmdAtr();
-            case KW_SE:       return parseCmdSe();
-            case KW_ENQUANTO: return parseCmdEnquanto();
+            case IDENT:
+                dbg("-> escolha: CmdAtrib");
+                return parseCmdAtr();
+            case KW_SE:
+                dbg("-> escolha: CmdSe");
+                return parseCmdSe();
+            case KW_ENQUANTO:
+                dbg("-> escolha: CmdEnquanto");
+                return parseCmdEnquanto();
             default:
                 error("comando inválido");
                 // recuperação: consome até ';' ou início de próximo comando/END
@@ -128,9 +146,7 @@ public class AnalisadorSintatico {
         if (match(TokenTipo.KW_SENAO)) {
             n.add(new AstNode("Else").add(parseComando()));
         }
-
-        // sem ';' ao final do 'se' (o comando interno cuida)
-        return n;
+        return n; // sem ';' no final
     }
 
     /** cmdEnquanto = 'enquanto' '(' condicao ')' comando */
@@ -142,8 +158,7 @@ public class AnalisadorSintatico {
         n.add(parseCondicao());
         expect(TokenTipo.FECHA_PAR, "esperava ')' após condição");
         n.add(new AstNode("Body").add(parseComando()));
-        // sem ';' ao final do 'enquanto'
-        return n;
+        return n; // sem ';' no final
     }
 
     // --------- Expressões numéricas ----------
@@ -248,6 +263,7 @@ public class AnalisadorSintatico {
             naos.add(last());
             count++;
         }
+        if (count > 0) dbg("parseNegacao: " + count + "x 'NAO' consumidos");
 
         AstNode base = parseRelacao(); // sem '( condicao )' aqui
 
@@ -262,9 +278,18 @@ public class AnalisadorSintatico {
 
     /** relacao = expressao opRel expressao */
     private AstNode parseRelacao() {
+        dbg("parseRelacao lookahead=" + tokStr(atual));
         AstNode a = parseExpressao();
+        dbg("parseRelacao: após expr-esq, lookahead=" + tokStr(atual));
+
         Token op = expectOneOf(REL_OPS, "esperava operador relacional");
+        if (op.getTipo() != TokenTipo.INVALIDO) {
+            dbg("parseRelacao: operador=" + op.getTipo());
+        }
+
         AstNode b = parseExpressao();
+        dbg("parseRelacao: após expr-dir, lookahead=" + tokStr(atual));
+
         AstNode rel = new AstNode("Rel", op);
         rel.add(a).add(b);
         return rel;
@@ -275,6 +300,7 @@ public class AnalisadorSintatico {
     private void advance() {
         ultimo = atual;
         atual = lx.proximo();
+        dbg("advance: agora lookahead=" + tokStr(atual) + " (consumido " + tokStr(ultimo) + ")");
     }
 
     private Token last() { return ultimo; }
@@ -294,6 +320,7 @@ public class AnalisadorSintatico {
             return t;
         }
         error(msg);
+        dbg("expect falhou: esperava " + tipo + " mas viu " + tokStr(atual) + " -> inserindo token virtual");
         return new Token(tipo, "<inserido>", atual.getLinha(), atual.getColuna());
     }
 
@@ -304,6 +331,7 @@ public class AnalisadorSintatico {
             return t;
         }
         error(msg);
+        dbg("expectR falhou: esperava " + tipo + " mas viu " + tokStr(atual) + " -> substituindo e consumindo 1");
         Token t = new Token(tipo, "<recuperado>", atual.getLinha(), atual.getColuna());
         advance();
         return t;
@@ -314,11 +342,13 @@ public class AnalisadorSintatico {
             Token t = atual; advance(); return t;
         }
         error(msg);
+        dbg("expectOneOf falhou: esperava um de " + set + " mas viu " + tokStr(atual));
         return new Token(TokenTipo.INVALIDO, "<invalido>", atual.getLinha(), atual.getColuna());
     }
 
     private void error(String mensagem) {
-        diagnosticos.add(new Diagnostico(Tipo.SINTATICO, 10, mensagem, atual.getLinha(), atual.getColuna(), atual.getLexema()));
+        diagnosticos.add(new Diagnostico(Tipo.SINTATICO, 10, mensagem,
+                atual.getLinha(), atual.getColuna(), atual.getLexema()));
     }
 
     private void sincronizarAte(EnumSet<TokenTipo> conjunto) {
