@@ -1,0 +1,6 @@
+$
+inteiro a, b, c;
+a = 1;
+b = 2;
+se ( (a + b) < 10 ) entao a = b;
+$.

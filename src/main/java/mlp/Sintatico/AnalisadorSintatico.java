@@ -17,7 +17,7 @@ public class AnalisadorSintatico {
     // ----------------- Estado -----------------
     private final AnalisadorLexico lx;
     private Token atual;
-    private Token ultimo; // último token consumido (útil após match(...))
+    private Token ultimo; // último token consumido
 
     private final List<Diagnostico> diagnosticos = new ArrayList<>();
 
@@ -113,7 +113,7 @@ public class AnalisadorSintatico {
         return n;
     }
 
-    /** cmdSe = 'se' '(' condicao ')' 'entao' comando [ 'senao' comando ] ';' */
+    /** cmdSe = 'se' '(' condicao ')' 'entao' comando ['senao' comando] */
     private AstNode parseCmdSe() {
         AstNode n = new AstNode("CmdSe");
 
@@ -129,11 +129,11 @@ public class AnalisadorSintatico {
             n.add(new AstNode("Else").add(parseComando()));
         }
 
-        expect(TokenTipo.PONTO_VIRG, "esperava ';' ao final do 'se'");
+        // sem ';' ao final do 'se' (o comando interno cuida)
         return n;
     }
 
-    /** cmdEnquanto = 'enquanto' '(' condicao ')' comando ';' */
+    /** cmdEnquanto = 'enquanto' '(' condicao ')' comando */
     private AstNode parseCmdEnquanto() {
         AstNode n = new AstNode("CmdEnquanto");
 
@@ -142,7 +142,7 @@ public class AnalisadorSintatico {
         n.add(parseCondicao());
         expect(TokenTipo.FECHA_PAR, "esperava ')' após condição");
         n.add(new AstNode("Body").add(parseComando()));
-        expect(TokenTipo.PONTO_VIRG, "esperava ';' ao final do 'enquanto'");
+        // sem ';' ao final do 'enquanto'
         return n;
     }
 
@@ -240,7 +240,7 @@ public class AnalisadorSintatico {
         return left;
     }
 
-    /** negacao = { 'NAO' } relacao */
+    /** negacao = { 'NAO' } relacao  */
     private AstNode parseNegacao() {
         int count = 0;
         List<Token> naos = new ArrayList<>();
@@ -248,7 +248,9 @@ public class AnalisadorSintatico {
             naos.add(last());
             count++;
         }
-        AstNode base = parseRelacao();
+
+        AstNode base = parseRelacao(); // sem '( condicao )' aqui
+
         // empilha NAO como nós unários (associando à direita)
         for (int k = 0; k < count; k++) {
             AstNode nao = new AstNode("Nao", naos.get(count - 1 - k));
@@ -258,56 +260,25 @@ public class AnalisadorSintatico {
         return base;
     }
 
-    /** relacao = '(' relacao ')' | opndRel opRel opndRel */
+    /** relacao = expressao opRel expressao */
     private AstNode parseRelacao() {
-        if (match(TokenTipo.ABRE_PAR)) {
-            AstNode inside = parseRelacao();
-            expect(TokenTipo.FECHA_PAR, "esperava ')' após relação");
-            return inside;
-        } else {
-            AstNode a = parseOpndRel();
-            Token op = expectOneOf(REL_OPS, "esperava operador relacional");
-            AstNode b = parseOpndRel();
-            AstNode rel = new AstNode("Rel", op);
-            rel.add(a).add(b);
-            return rel;
-        }
-    }
-
-    /** opndRel = IDENT | NUM_INT | NUM_REAL | '(' expressao ')' */
-    private AstNode parseOpndRel() {
-        switch (atual.getTipo()) {
-            case IDENT:
-            case NUM_INT:
-            case NUM_REAL: {
-                Token t = atual; advance();
-                return new AstNode("Opnd", t);
-            }
-            case ABRE_PAR: {
-                advance();
-                AstNode e = parseExpressao();
-                expect(TokenTipo.FECHA_PAR, "esperava ')' após expressão");
-                return e;
-            }
-            default: {
-                error("operando relacional inválido");
-                Token err = atual; advance();
-                return new AstNode("OpndInvalido", err);
-            }
-        }
+        AstNode a = parseExpressao();
+        Token op = expectOneOf(REL_OPS, "esperava operador relacional");
+        AstNode b = parseExpressao();
+        AstNode rel = new AstNode("Rel", op);
+        rel.add(a).add(b);
+        return rel;
     }
 
     // ----------------- Utilitários de parsing -----------------
 
-    private void advance() { 
+    private void advance() {
         ultimo = atual;
-        atual = lx.proximo(); 
+        atual = lx.proximo();
     }
 
-    /** último token consumido (após um match/expect bem-sucedido) */
     private Token last() { return ultimo; }
 
-    /** match que consome se o tipo bater; armazena o último token em 'ultimo' */
     private boolean match(TokenTipo tipo) {
         if (atual.getTipo() == tipo) {
             advance();
@@ -323,7 +294,6 @@ public class AnalisadorSintatico {
             return t;
         }
         error(msg);
-        // recuperação simples: inserir token virtual (ε-inserção) e seguir
         return new Token(tipo, "<inserido>", atual.getLinha(), atual.getColuna());
     }
 
@@ -334,7 +304,6 @@ public class AnalisadorSintatico {
             return t;
         }
         error(msg);
-        // tenta consumir 1 token e devolve “substituído”
         Token t = new Token(tipo, "<recuperado>", atual.getLinha(), atual.getColuna());
         advance();
         return t;

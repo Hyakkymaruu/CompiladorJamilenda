@@ -1,0 +1,5 @@
+$
+inteiro a, b, c, x;
+a = 1; b = 2; c = 3;
+se ( (a + b) < c ) entao x = a + b;
+$.

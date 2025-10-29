@@ -1,0 +1,5 @@
+$
+inteiro a, b, x;
+a = 1; b = 2;
+se ( (a < b) ) entao x = a;
+$.
