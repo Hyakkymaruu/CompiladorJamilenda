@@ -1,43 +1,30 @@
 package mlp.Lexico;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import mlp.Erros.Diagnostico;
 import mlp.Erros.Diagnostico.Tipo;
 
 public class AnalisadorLexico {
 
+    // ---- Códigos locais de erro léxico (01xx) ----
+    private static final int LEX_SIMBOLO_DESCONHECIDO = 101; // caractere não pertence ao alfabeto
+    private static final int LEX_REAL_INVALIDO        = 102; // "5." (ponto sem dígitos após)
+    private static final int LEX_IDENT_MALFORMADO     = 103; // reservado p/ futuro
+
+    // ---- Entrada ----
     private final String fonte;
     private final int n;
-    private int i = 0;           // índice atual (0-based)
-    private int linha = 1;       // 1-based
-    private int coluna = 1;      // 1-based
+    private int i = 0;        // índice no buffer
+    private int linha = 1;    // 1-based
+    private int coluna = 1;   // 1-based
 
+    // ---- Saída ----
     private final List<Diagnostico> diagnosticos = new ArrayList<>();
 
-    private static final Map<String, TokenTipo> PALAVRAS = new HashMap<>();
-    static {
-        // minúsculas
-        PALAVRAS.put("se", TokenTipo.KW_SE);
-        PALAVRAS.put("entao", TokenTipo.KW_ENTAO);
-        PALAVRAS.put("senao", TokenTipo.KW_SENAO);
-        PALAVRAS.put("enquanto", TokenTipo.KW_ENQUANTO);
-        PALAVRAS.put("inteiro", TokenTipo.KW_INTEIRO);
-        PALAVRAS.put("real", TokenTipo.KW_REAL);
-        PALAVRAS.put("caracter", TokenTipo.KW_CARACTER);
-        // maiúsculas
-        PALAVRAS.put("E", TokenTipo.KW_E);
-        PALAVRAS.put("OU", TokenTipo.KW_OU);
-        PALAVRAS.put("NAO", TokenTipo.KW_NAO);
-        // operador-palavra
-        PALAVRAS.put("RESTO", TokenTipo.OP_RESTO);
-    }
-
     public AnalisadorLexico(String fonte) {
-        this.fonte = (fonte == null ? "" : fonte);
+        this.fonte = fonte != null ? fonte : "";
         this.n = this.fonte.length();
     }
 
@@ -45,184 +32,213 @@ public class AnalisadorLexico {
         return diagnosticos;
     }
 
-    public List<Token> listarTodos() {
-        List<Token> out = new ArrayList<>();
-        Token t;
-        do {
-            t = proximo();
-            out.add(t);
-        } while (t.getTipo() != TokenTipo.EOF);
-        return out;
-    }
-
+    // ------------------------------------------------------
+    // Interface pública
+    // ------------------------------------------------------
     public Token proximo() {
-        ignorarEspacosEComentarios();
+        consumirEspacos();
 
-        if (fim()) return novo(TokenTipo.EOF, "");
+        if (fim()) return novo(TokenTipo.EOF, "<EOF>", posLinha(), posColuna());
 
         char c = peek();
 
-        // $., depois $
+        // Delimitadores simples
+        if (c == '(') { avancar(); return novo(TokenTipo.ABRE_PAR, "(", linha, coluna - 1); }
+        if (c == ')') { avancar(); return novo(TokenTipo.FECHA_PAR, ")", linha, coluna - 1); }
+        if (c == ',') { avancar(); return novo(TokenTipo.VIRGULA, ",", linha, coluna - 1); }
+        if (c == ';') { avancar(); return novo(TokenTipo.PONTO_VIRG, ";", linha, coluna - 1); }
+        if (c == '+') { avancar(); return novo(TokenTipo.OP_MAIS, "+", linha, coluna - 1); }
+        if (c == '*') { avancar(); return novo(TokenTipo.OP_MULT, "*", linha, coluna - 1); }
+        if (c == '/') { avancar(); return novo(TokenTipo.OP_DIV,  "/", linha, coluna - 1); }
+        if (c == '=') {
+            // '=' ou '=='
+            if (lookaheadEq('=')) {
+                avancar(); avancar();
+                return novo(TokenTipo.OP_EQ, "==", linha, coluna - 2);
+            } else {
+                avancar();
+                return novo(TokenTipo.OP_ATRIB, "=", linha, coluna - 1);
+            }
+        }
+        if (c == '>') {
+            if (lookaheadEq('=')) { avancar(); avancar(); return novo(TokenTipo.OP_GE, ">=", linha, coluna - 2); }
+            avancar(); return novo(TokenTipo.OP_GT, ">", linha, coluna - 1);
+        }
+        if (c == '<') {
+            if (lookaheadEq('=')) { avancar(); avancar(); return novo(TokenTipo.OP_LE, "<=", linha, coluna - 2); }
+            avancar(); return novo(TokenTipo.OP_LT, "<", linha, coluna - 1);
+        }
+        if (c == '!') {
+            if (lookaheadEq('=')) { avancar(); avancar(); return novo(TokenTipo.OP_NE, "!=", linha, coluna - 2); }
+            // '!' sozinho não existe na MLP
+            int lin = linha, col = coluna;
+            avancar();
+            erro(LEX_SIMBOLO_DESCONHECIDO, "símbolo não reconhecido", lin, col, "!");
+            return novo(TokenTipo.INVALIDO, "!", lin, col);
+        }
+
+        // '$' e '$.' (START/END)
         if (c == '$') {
-            if (match("$."))
-                return novo(TokenTipo.END, "$.");
-            advance(); // consome apenas '$'
-            return novo(TokenTipo.START, "$");
+            int lin = linha, col = coluna;
+            avancar();
+            if (!fim() && peek() == '.') {
+                avancar();
+                return novo(TokenTipo.END, "$.", lin, col);
+            }
+            return novo(TokenTipo.START, "$", lin, col);
         }
 
-        // operadores de 2 chars
-        if (match("==")) return novo(TokenTipo.OP_EQ, "==");
-        if (match("!=")) return novo(TokenTipo.OP_NE, "!=");
-        if (match("<=")) return novo(TokenTipo.OP_LE, "<=");
-        if (match(">=")) return novo(TokenTipo.OP_GE, ">=");
+        // Números (inteiro | real)
+        if (isDigit(c) || c == '.') {
+            return scanNumero();
+        }
 
-        // símbolos simples
-        if (c == '(') { advance(); return novo(TokenTipo.ABRE_PAR, "("); }
-        if (c == ')') { advance(); return novo(TokenTipo.FECHA_PAR, ")"); }
-        if (c == ',') { advance(); return novo(TokenTipo.VIRGULA, ","); }
-        if (c == ';') { advance(); return novo(TokenTipo.PONTO_VIRG, ";"); }
-        if (c == '+') { advance(); return novo(TokenTipo.OP_MAIS, "+"); }
-        if (c == '*') { advance(); return novo(TokenTipo.OP_MULT, "*"); }
-        if (c == '/') { advance(); return novo(TokenTipo.OP_DIV, "/"); }
-        if (c == '<') { advance(); return novo(TokenTipo.OP_LT, "<"); }
-        if (c == '>') { advance(); return novo(TokenTipo.OP_GT, ">"); }
-        if (c == '=') { advance(); return novo(TokenTipo.OP_ATRIB, "="); }
-
-        // identificadores / palavras-chave / RESTO
+        // Identificadores / palavras reservadas / operador RESTO
         if (isLetter(c)) {
-            int startCol = coluna;             // <-- removido startI (não usado)
-            String word = lerIdentOuPalavra();
-            TokenTipo t = PALAVRAS.get(word);
-            if (t != null) {
-                if (t == TokenTipo.OP_RESTO && !fronteiraPalavra())
-                    return novoToken(TokenTipo.IDENT, word, linha, startCol);
-                return novoToken(t, word, linha, startCol);
-            }
-            return novoToken(TokenTipo.IDENT, word, linha, startCol);
+            return scanIdentOuReservado();
         }
 
-        // números (real antes de inteiro)
-        if (isDigit(c)) {
-            int startCol = coluna;
-            String num = lerNumero();
-            if (num.indexOf('.') >= 0) {
-                String[] partes = num.split("\\.", -1);
-                if (partes.length == 2 && !partes[0].isEmpty() && !partes[1].isEmpty()) {
-                    return novoToken(TokenTipo.NUM_REAL, num, linha, startCol);
-                } else {
-                    diagnosticos.add(new Diagnostico(
-                        Tipo.LEXICO, 2, "número malformado", linha, startCol, num));
-                    return novoToken(TokenTipo.INVALIDO, num, linha, startCol);
-                }
-            } else {
-                return novoToken(TokenTipo.NUM_INT, num, linha, startCol);
-            }
-        }
-
-        // caractere inválido
-        int col = coluna;
-        String invalido = String.valueOf(c);
-        diagnosticos.add(new Diagnostico(Tipo.LEXICO, 1, "símbolo desconhecido", linha, col, invalido));
-        advance();
-        return novoToken(TokenTipo.INVALIDO, invalido, linha, col);
+        // Qualquer outro caractere
+        int lin = linha, col = coluna;
+        char inval = c;
+        avancar();
+        erro(LEX_SIMBOLO_DESCONHECIDO, "símbolo não reconhecido", lin, col, String.valueOf(inval));
+        return novo(TokenTipo.INVALIDO, String.valueOf(inval), lin, col);
     }
 
-    // ---------------- utilidades ----------------
+    // ------------------------------------------------------
+    // Scanners
+    // ------------------------------------------------------
 
-    private void ignorarEspacosEComentarios() {
-        boolean consumiu;
-        do {
-            consumiu = false;
-            // whitespace
-            while (!fim()) {
-                char c = peek();
-                if (c == ' ' || c == '\t' || c == '\r') { advance(); consumiu = true; }
-                else if (c == '\n') { advance(); consumiu = true; }
-                else break;
-            }
-            // // linha
-            if (match("//")) {
-                consumiu = true;
-                while (!fim() && peek() != '\n') advance();
-            }
-            // /* bloco */
-            if (match("/*")) {
-                consumiu = true;
-                boolean fechado = false;
-                while (!fim()) {
-                    if (match("*/")) { fechado = true; break; }
-                    advance();
-                }
-                if (!fechado) {
-                    diagnosticos.add(new Diagnostico(Tipo.LEXICO, 3, "comentário não terminado",
-                            linha, coluna, null));
-                }
-            }
-        } while (consumiu);
-    }
+    private Token scanNumero() {
+        int lin = linha, col = coluna;
+        int ini = i;
 
-    private String lerIdentOuPalavra() {
-        int start = i;
-        advance(); // já tinha 1 letra
-        while (!fim() && (isLetter(peek()) || isDigit(peek()))) {
-            advance();
-        }
-        return fonte.substring(start, i);
-    }
-
-    private String lerNumero() {
-        int start = i;
-        while (!fim() && isDigit(peek())) advance();
-        if (!fim() && peek() == '.') {
-            int saveI = i, saveLinha = linha, saveCol = coluna;
-            advance(); // consome '.'
+        if (peek() == '.') {
+            // Padrão: '.' digitos+  (válido)
+            avancar(); // consome '.'
             if (!fim() && isDigit(peek())) {
-                while (!fim() && isDigit(peek())) advance();
-                return fonte.substring(start, i);
+                while (!fim() && isDigit(peek())) avancar();
+                String lex = fonte.substring(ini, i);
+                return novo(TokenTipo.NUM_REAL, lex, lin, col);
             } else {
-                i = saveI; linha = saveLinha; coluna = saveCol;
+                // '.' não seguido de dígito -> não é número válido
+                erro(LEX_SIMBOLO_DESCONHECIDO, "símbolo não reconhecido", lin, col, ".");
+                return novo(TokenTipo.INVALIDO, ".", lin, col);
             }
         }
-        return fonte.substring(start, i);
+
+        // dígitos+ (inteiro potencialmente seguido de parte fracionária)
+        while (!fim() && isDigit(peek())) avancar();
+
+        // parte fracionária?
+        if (!fim() && peek() == '.') {
+            // precisa ter dígitos depois do ponto para ser real
+            if (lookaheadDigit()) {
+                avancar(); // consome '.'
+                while (!fim() && isDigit(peek())) avancar();
+                String lex = fonte.substring(ini, i);
+                return novo(TokenTipo.NUM_REAL, lex, lin, col);
+            } else {
+                // "5." -> real inválido
+                String lex = fonte.substring(ini, i + 1); // inclui o '.'
+                // Consome o '.' para não travar
+                avancar();
+                erro(LEX_REAL_INVALIDO, "número real inválido (faltam dígitos após '.')", lin, col, lex);
+                // Retorna inteiro com os dígitos escaneados originalmente
+                String onlyInt = fonte.substring(ini, i - 1);
+                return novo(TokenTipo.NUM_INT, onlyInt, lin, col);
+            }
+        }
+
+        String lex = fonte.substring(ini, i);
+        return novo(TokenTipo.NUM_INT, lex, lin, col);
     }
 
-    private boolean fronteiraPalavra() {
-        if (fim()) return true;
-        char c = peek();
-        return !(isLetter(c) || isDigit(c));
+    private Token scanIdentOuReservado() {
+        int lin = linha, col = coluna;
+        int ini = i;
+        // primeira letra
+        avancar();
+        // letras/dígitos subsequentes
+        while (!fim() && (isLetter(peek()) || isDigit(peek()))) {
+            avancar();
+        }
+        String lex = fonte.substring(ini, i);
+
+        // Palavras reservadas
+        switch (lex) {
+            case "se":       return novo(TokenTipo.KW_SE, lex, lin, col);
+            case "entao":    return novo(TokenTipo.KW_ENTAO, lex, lin, col);
+            case "senao":    return novo(TokenTipo.KW_SENAO, lex, lin, col);
+            case "enquanto": return novo(TokenTipo.KW_ENQUANTO, lex, lin, col);
+            case "inteiro":  return novo(TokenTipo.KW_INTEIRO, lex, lin, col);
+            case "real":     return novo(TokenTipo.KW_REAL, lex, lin, col);
+            case "caracter": return novo(TokenTipo.KW_CARACTER, lex, lin, col);
+            case "E":        return novo(TokenTipo.KW_E, lex, lin, col);
+            case "OU":       return novo(TokenTipo.KW_OU, lex, lin, col);
+            case "NAO":      return novo(TokenTipo.KW_NAO, lex, lin, col);
+            case "RESTO":    return novo(TokenTipo.OP_RESTO, lex, lin, col);
+            default:         return novo(TokenTipo.IDENT, lex, lin, col);
+        }
     }
 
-    private Token novo(TokenTipo tipo, String lexema) {
-        int startCol = Math.max(1, coluna - Math.max(lexema.length() - 1, 0));
-        return new Token(tipo, lexema, linha, startCol);
+    // ------------------------------------------------------
+    // Utilitários
+    // ------------------------------------------------------
+    private boolean fim() { return i >= n; }
+    private char peek()   { return fonte.charAt(i); }
+    private void avancar() {
+        char c = fonte.charAt(i++);
+        if (c == '\n') { linha++; coluna = 1; } else { coluna++; }
     }
-    private Token novoToken(TokenTipo tipo, String lexema, int lin, int col) {
+    private boolean lookaheadEq(char ch) {
+        return (i + 1 < n) && (fonte.charAt(i + 1) == ch);
+    }
+    private boolean lookaheadDigit() {
+        return (i + 1 < n) && Character.isDigit(fonte.charAt(i + 1));
+    }
+    private boolean isDigit(char c) { return c >= '0' && c <= '9'; }
+    private boolean isLetter(char c) {
+        return (c >= 'a' && c <= 'z') ||
+               (c >= 'A' && c <= 'Z');
+    }
+    private int posLinha() { return linha; }
+    private int posColuna(){ return coluna; }
+
+    private void consumirEspacos() {
+        while (!fim()) {
+            char c = peek();
+            if (c == ' ' || c == '\t' || c == '\r' || c == '\n') {
+                avancar();
+            } else {
+                break;
+            }
+        }
+    }
+
+    private Token novo(TokenTipo tipo, String lexema, int lin, int col) {
         return new Token(tipo, lexema, lin, col);
     }
 
-    private boolean match(String s) {
-        if (i + s.length() > n) return false;
-        for (int k = 0; k < s.length(); k++) {
-            if (fonte.charAt(i + k) != s.charAt(k)) return false;
-        }
-        for (int k = 0; k < s.length(); k++) advance();
-        return true;
+    private void erro(int codigo, String msg, int lin, int col, String lex) {
+        diagnosticos.add(new Diagnostico(Tipo.LEXICO, codigo, msg, lin, col, lex));
     }
 
-    private char peek() { return fonte.charAt(i); }
-
-    private void advance() {
-        char c = fonte.charAt(i++);
-        if (c == '\n') { linha++; coluna = 1; }
-        else { coluna++; }
-    }
-
-    private boolean fim() { return i >= n; }
-
-    private static boolean isLetter(char c) {
-        return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
-    }
-    private static boolean isDigit(char c) {
-        return (c >= '0' && c <= '9');
+    // ------------------------------------------------------
+    // NOVO: listarTodos() — para compatibilidade com o Main
+    // Não altera o estado do léxico atual: usa um léxico temporário.
+    // ------------------------------------------------------
+    public List<Token> listarTodos() {
+        List<Token> out = new ArrayList<>();
+        AnalisadorLexico tmp = new AnalisadorLexico(this.fonte);
+        Token t;
+        do {
+            t = tmp.proximo();
+            out.add(t);
+        } while (t.getTipo() != TokenTipo.EOF);
+        // Se quiser refletir também os diagnósticos capturados nesta passagem:
+        // this.diagnosticos.addAll(tmp.getDiagnosticos());
+        return out;
     }
 }
