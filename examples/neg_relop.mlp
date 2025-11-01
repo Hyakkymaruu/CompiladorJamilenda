@@ -1,0 +1,4 @@
+$
+inteiro a,b;
+se (a b) entao a = 1;
+$.

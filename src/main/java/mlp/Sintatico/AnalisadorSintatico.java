@@ -15,14 +15,29 @@ import mlp.ast.AstNode;
 public class AnalisadorSintatico {
 
     // ----------------- Debug -----------------
-    /** Ative para ver decisões do parser no console. */
-    private boolean DEBUG = true; // mude para true se quiser logar
+    private boolean DEBUG = false; // mude para true se quiser logar
     public void setDebug(boolean value) { this.DEBUG = value; }
     private void dbg(String msg) { if (DEBUG) System.out.println("[DBG] " + msg); }
     private static String tokStr(Token t) {
         if (t == null) return "<null>";
         return t.getTipo() + "('" + t.getLexema() + "')@" + t.getLinha() + ":" + t.getColuna();
     }
+
+    // ----------------- Códigos locais (evita dependência de Diagnostico.*) -----------------
+    private static final int SIN_COMANDO_INVALIDO   = 1001;
+    private static final int SIN_ESPERAVA_START     = 1002;
+    private static final int SIN_ESPERAVA_END       = 1003;
+    private static final int SIN_ESPERAVA_TIPO      = 1004;
+    private static final int SIN_ESPERAVA_IDENT     = 1005;
+    private static final int SIN_ESPERAVA_PV_DECL   = 1006;
+    private static final int SIN_ESPERAVA_IDENT_APV = 1007; // ident após vírgula
+    private static final int SIN_ESPERAVA_OP_REL    = 1010;
+    private static final int SIN_ESPERAVA_FP_EXP    = 1012; // fecha parêntese após expressão
+    private static final int SIN_ESPERAVA_FP_COND   = 1013; // fecha parêntese após condição
+    private static final int SIN_ESPERAVA_ENTAO     = 1014;
+    private static final int SIN_ESPERAVA_ATR       = 1015; // '='
+    private static final int SIN_FATOR_INVALIDO     = 1016;
+    private static final int SIN_ESPERAVA_PV_ATR    = 1017;
 
     // ----------------- Estado -----------------
     private final AnalisadorLexico lx;
@@ -44,7 +59,7 @@ public class AnalisadorSintatico {
     public AstNode parsePrograma() {
         AstNode prog = new AstNode("Programa");
 
-        expect(TokenTipo.START, "esperava início de programa '$'");
+        expect(TokenTipo.START, SIN_ESPERAVA_START, "esperava início de programa '$'");
 
         // { declar }
         while (isTipo(atual.getTipo())) {
@@ -56,7 +71,7 @@ public class AnalisadorSintatico {
             prog.add(parseComando());
         }
 
-        expect(TokenTipo.END, "esperava fim de programa '$.'");
+        expect(TokenTipo.END, SIN_ESPERAVA_END, "esperava fim de programa '$.'");
         return prog;
     }
 
@@ -72,7 +87,7 @@ public class AnalisadorSintatico {
             decl.add(new AstNode("Tipo", atual));
             advance();
         } else {
-            error("esperava tipo ('inteiro', 'real' ou 'caracter')");
+            error(SIN_ESPERAVA_TIPO, "esperava tipo ('inteiro', 'real' ou 'caracter')");
             sincronizarAte(PONTO_VIRG_SET); // tenta chegar até ';'
         }
 
@@ -83,16 +98,16 @@ public class AnalisadorSintatico {
                 if (match(TokenTipo.IDENT)) {
                     lista.add(new AstNode("Ident", last()));
                 } else {
-                    error("esperava identificador após ','");
+                    error(SIN_ESPERAVA_IDENT_APV, "esperava identificador após ','");
                     break;
                 }
             }
             decl.add(lista);
         } else {
-            error("esperava identificador na declaração");
+            error(SIN_ESPERAVA_IDENT, "esperava identificador na declaração");
         }
 
-        expect(TokenTipo.PONTO_VIRG, "esperava ';' ao final da declaração");
+        expect(TokenTipo.PONTO_VIRG, SIN_ESPERAVA_PV_DECL, "esperava ';' ao final da declaração");
         return decl;
     }
 
@@ -110,7 +125,7 @@ public class AnalisadorSintatico {
                 dbg("-> escolha: CmdEnquanto");
                 return parseCmdEnquanto();
             default:
-                error("comando inválido");
+                error(SIN_COMANDO_INVALIDO, "comando inválido");
                 // recuperação: consome até ';' ou início de próximo comando/END
                 sincronizarAte(SYNC_COMANDO);
                 if (atual.getTipo() == TokenTipo.PONTO_VIRG) advance();
@@ -121,13 +136,13 @@ public class AnalisadorSintatico {
     /** cmdAtr = IDENT '=' expressao ';' */
     private AstNode parseCmdAtr() {
         AstNode n = new AstNode("CmdAtrib");
-        Token id = expectR(TokenTipo.IDENT, "esperava identificador na atribuição");
+        Token id = expectR(TokenTipo.IDENT, SIN_ESPERAVA_IDENT, "esperava identificador na atribuição");
         n.add(new AstNode("LValue", id));
 
-        expect(TokenTipo.OP_ATRIB, "esperava '=' na atribuição");
+        expect(TokenTipo.OP_ATRIB, SIN_ESPERAVA_ATR, "esperava '=' na atribuição");
         n.add(parseExpressao());
 
-        expect(TokenTipo.PONTO_VIRG, "esperava ';' ao final da atribuição");
+        expect(TokenTipo.PONTO_VIRG, SIN_ESPERAVA_PV_ATR, "esperava ';' ao final da atribuição");
         return n;
     }
 
@@ -135,11 +150,11 @@ public class AnalisadorSintatico {
     private AstNode parseCmdSe() {
         AstNode n = new AstNode("CmdSe");
 
-        expect(TokenTipo.KW_SE, "esperava 'se'");
-        expect(TokenTipo.ABRE_PAR, "esperava '(' após 'se'");
+        expect(TokenTipo.KW_SE, SIN_COMANDO_INVALIDO, "esperava 'se'");
+        expect(TokenTipo.ABRE_PAR, SIN_ESPERAVA_FP_COND, "esperava '(' após 'se'");
         n.add(parseCondicao());
-        expect(TokenTipo.FECHA_PAR, "esperava ')' após condição");
-        expect(TokenTipo.KW_ENTAO, "esperava 'entao'");
+        expect(TokenTipo.FECHA_PAR, SIN_ESPERAVA_FP_COND, "esperava ')' após condição");
+        expect(TokenTipo.KW_ENTAO, SIN_ESPERAVA_ENTAO, "esperava 'entao'");
 
         n.add(new AstNode("Then").add(parseComando()));
 
@@ -153,10 +168,10 @@ public class AnalisadorSintatico {
     private AstNode parseCmdEnquanto() {
         AstNode n = new AstNode("CmdEnquanto");
 
-        expect(TokenTipo.KW_ENQUANTO, "esperava 'enquanto'");
-        expect(TokenTipo.ABRE_PAR, "esperava '(' após 'enquanto'");
+        expect(TokenTipo.KW_ENQUANTO, SIN_COMANDO_INVALIDO, "esperava 'enquanto'");
+        expect(TokenTipo.ABRE_PAR, SIN_ESPERAVA_FP_COND, "esperava '(' após 'enquanto'");
         n.add(parseCondicao());
-        expect(TokenTipo.FECHA_PAR, "esperava ')' após condição");
+        expect(TokenTipo.FECHA_PAR, SIN_ESPERAVA_FP_COND, "esperava ')' após condição");
         n.add(new AstNode("Body").add(parseComando()));
         return n; // sem ';' no final
     }
@@ -212,11 +227,11 @@ public class AnalisadorSintatico {
             case ABRE_PAR: {
                 advance();
                 AstNode e = parseExpressao();
-                expect(TokenTipo.FECHA_PAR, "esperava ')' após expressão");
+                expect(TokenTipo.FECHA_PAR, SIN_ESPERAVA_FP_EXP, "esperava ')' após expressão");
                 return e;
             }
             default: {
-                error("fator inválido em expressão");
+                error(SIN_FATOR_INVALIDO, "fator inválido em expressão");
                 Token err = atual; advance();
                 return new AstNode("FatorInvalido", err);
             }
@@ -282,7 +297,7 @@ public class AnalisadorSintatico {
         AstNode a = parseExpressao();
         dbg("parseRelacao: após expr-esq, lookahead=" + tokStr(atual));
 
-        Token op = expectOneOf(REL_OPS, "esperava operador relacional");
+        Token op = expectOneOf(REL_OPS, SIN_ESPERAVA_OP_REL, "esperava operador relacional");
         if (op.getTipo() != TokenTipo.INVALIDO) {
             dbg("parseRelacao: operador=" + op.getTipo());
         }
@@ -313,42 +328,43 @@ public class AnalisadorSintatico {
         return false;
     }
 
-    private Token expect(TokenTipo tipo, String msg) {
+    private Token expect(TokenTipo tipo, int codigo, String msg) {
         if (atual.getTipo() == tipo) {
             Token t = atual;
             advance();
             return t;
         }
-        error(msg);
+        error(codigo, msg);
         dbg("expect falhou: esperava " + tipo + " mas viu " + tokStr(atual) + " -> inserindo token virtual");
         return new Token(tipo, "<inserido>", atual.getLinha(), atual.getColuna());
     }
 
-    private Token expectR(TokenTipo tipo, String msg) {
+    private Token expectR(TokenTipo tipo, int codigo, String msg) {
         if (atual.getTipo() == tipo) {
             Token t = atual;
             advance();
             return t;
         }
-        error(msg);
+        error(codigo, msg);
         dbg("expectR falhou: esperava " + tipo + " mas viu " + tokStr(atual) + " -> substituindo e consumindo 1");
         Token t = new Token(tipo, "<recuperado>", atual.getLinha(), atual.getColuna());
         advance();
         return t;
     }
 
-    private Token expectOneOf(EnumSet<TokenTipo> set, String msg) {
+    private Token expectOneOf(EnumSet<TokenTipo> set, int codigo, String msg) {
         if (set.contains(atual.getTipo())) {
             Token t = atual; advance(); return t;
         }
-        error(msg);
+        error(codigo, msg);
         dbg("expectOneOf falhou: esperava um de " + set + " mas viu " + tokStr(atual));
         return new Token(TokenTipo.INVALIDO, "<invalido>", atual.getLinha(), atual.getColuna());
     }
 
-    private void error(String mensagem) {
-        diagnosticos.add(new Diagnostico(Tipo.SINTATICO, 10, mensagem,
-                atual.getLinha(), atual.getColuna(), atual.getLexema()));
+    private void error(int codigo, String mensagem) {
+        diagnosticos.add(new Diagnostico(
+            Tipo.SINTATICO, codigo, mensagem, atual.getLinha(), atual.getColuna(), atual.getLexema()
+        ));
     }
 
     private void sincronizarAte(EnumSet<TokenTipo> conjunto) {
