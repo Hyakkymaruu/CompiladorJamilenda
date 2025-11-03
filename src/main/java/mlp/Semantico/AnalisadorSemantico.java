@@ -86,17 +86,18 @@ public class AnalisadorSemantico {
     // ---------------- Comandos ----------------
 
     private void analisarCmdAtrib(AstNode n) {
-        // CmdAtrib
-        //   LValue
-        //     Ident [IDENT 'x']
-        //   <expressão>
-        if (n.getFilhos().size() < 2) return;
-
         // Destino
-        AstNode lvalue = n.getFilhos().get(0);
-        Token idTk = (lvalue.getFilhos().isEmpty() ? null : lvalue.getFilhos().get(0).getToken());
-        String nome = (idTk == null ? "<desconhecido>" : idTk.getLexema());
-        TipoSimples tDest = tipoDeIdent(idTk);
+AstNode lvalue = n.getFilhos().get(0);
+// LValue pode ter o token diretamente ou ter um filho "Ident"
+Token idTk;
+if (lvalue.getFilhos().isEmpty()) {
+    idTk = lvalue.getToken(); // seu parser coloca o IDENT aqui
+} else {
+    idTk = lvalue.getFilhos().get(0).getToken(); // fallback se houver filho
+}
+String nome = (idTk == null ? "<desconhecido>" : idTk.getLexema());
+TipoSimples tDest = tipoDeIdent(idTk);
+
 
         // Expressão
         AstNode expr = n.getFilhos().get(1);
