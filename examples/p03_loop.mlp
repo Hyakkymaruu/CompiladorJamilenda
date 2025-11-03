@@ -1,0 +1,6 @@
+$
+inteiro i, lim;
+i = 0;
+lim = 5;
+enquanto ( (i) < (lim) ) i = i + 1;
+$.

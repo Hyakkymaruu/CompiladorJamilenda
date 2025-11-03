@@ -1,5 +1,0 @@
-$
-inteiro x, y;
-x = 2;
-se ( x == 2 ) entao y = 5; senao y = 0;
-$.

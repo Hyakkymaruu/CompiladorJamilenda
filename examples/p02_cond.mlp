@@ -1,0 +1,8 @@
+$
+inteiro a, b;
+a = 1;
+b = 2;
+
+se ( (a) < (b * 2) ) entao a = a + 1;
+se ( (a + b) == (3) ) entao b = b + 1;
+$.

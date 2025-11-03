@@ -1,7 +1,0 @@
-$
-inteiro i, limite;
-i = 0;
-limite = 3;
-enquanto ( i < limite ) i = i + 1;
-i = i * 2;
-$.
