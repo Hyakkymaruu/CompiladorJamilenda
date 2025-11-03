@@ -1,0 +1,8 @@
+$
+inteiro a, b;
+real x;
+caracter c;
+a = 1;
+b = a + 2 * 3;
+x = (a + b) / 2;
+$.

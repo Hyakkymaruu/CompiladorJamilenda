@@ -1,0 +1,13 @@
+$
+inteiro a, b;
+real x, y;
+caracter z;
+
+a = 7;
+b = 3;
+x = a / b;
+y = (x + 2) * (a + b);
+
+se ( (a RESTO b) == (1) ) entao a = a + b;
+enquanto ( (a) < (20) ) a = a + b;
+$.

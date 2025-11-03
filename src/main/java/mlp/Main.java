@@ -23,22 +23,45 @@ public class Main {
             System.exit(1);
         }
 
-        if ("--run-examples".equals(args[0])) {
-            Path dir = Paths.get("examples");
-            boolean anyErrors = false;
-            try (var stream = Files.list(dir)) {
-                for (Path p : (Iterable<Path>) stream.filter(f -> f.toString().endsWith(".mlp")).sorted()::iterator) {
-                    try {
-                        boolean hadErrors = processarArquivo(p);
-                        anyErrors |= hadErrors;
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                        anyErrors = true;
-                    }
-                }
-            }
-            System.exit(anyErrors ? 2 : 0);
+            if ("--run-examples".equals(args[0])) {
+    Path base = Paths.get(args.length > 1 ? args[1] : "examples");
+
+    if (!Files.exists(base)) {
+        System.err.println("[run-examples] Diretório não existe: " + base.toAbsolutePath());
+        System.exit(1);
+    }
+
+    System.out.println("[run-examples] Varredo recursivamente: " + base.toAbsolutePath());
+
+    List<Path> arquivos;
+    try (var stream = Files.walk(base)) {
+        arquivos = stream
+            .filter(f -> f.toString().endsWith(".mlp"))
+            .sorted()
+            .toList(); // Se estiver em Java <16, use Collectors.toList()
+    }
+
+    if (arquivos.isEmpty()) {
+        System.out.println("[run-examples] Nenhum arquivo .mlp encontrado.");
+        System.exit(0);
+    }
+
+    System.out.println("[run-examples] Encontrados " + arquivos.size() + " arquivos .mlp");
+    boolean anyErrors = false;
+
+    for (Path p : arquivos) {
+        try {
+            boolean hadErrors = processarArquivo(p);
+            anyErrors |= hadErrors;
+        } catch (Exception e) {
+            e.printStackTrace();
+            anyErrors = true;
         }
+    }
+
+    System.exit(anyErrors ? 2 : 0);
+}
+
 
         boolean hadErrors = processarArquivo(Paths.get(args[0]));
         System.exit(hadErrors ? 2 : 0);
