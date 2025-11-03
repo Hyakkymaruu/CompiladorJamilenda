@@ -25,21 +25,27 @@ public class Main {
 
         if ("--run-examples".equals(args[0])) {
             Path dir = Paths.get("examples");
+            boolean anyErrors = false;
             try (var stream = Files.list(dir)) {
-                stream.filter(p -> p.toString().endsWith(".mlp"))
-                      .sorted()
-                      .forEach(p -> {
-                          try { processarArquivo(p); }
-                          catch (Exception e) { e.printStackTrace(); }
-                      });
+                for (Path p : (Iterable<Path>) stream.filter(f -> f.toString().endsWith(".mlp")).sorted()::iterator) {
+                    try {
+                        boolean hadErrors = processarArquivo(p);
+                        anyErrors |= hadErrors;
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        anyErrors = true;
+                    }
+                }
             }
-            return;
+            System.exit(anyErrors ? 2 : 0);
         }
 
-        processarArquivo(Paths.get(args[0]));
+        boolean hadErrors = processarArquivo(Paths.get(args[0]));
+        System.exit(hadErrors ? 2 : 0);
     }
 
-    private static void processarArquivo(Path path) throws Exception {
+    /** Processa um arquivo .mlp e retorna true se houve qualquer diagnóstico. */
+    private static boolean processarArquivo(Path path) throws Exception {
         System.out.println("\n==================================================");
         System.out.println("ARQUIVO: " + path);
         System.out.println("==================================================");
@@ -48,7 +54,12 @@ public class Main {
 
         // 1) LÉXICO (coleta de tokens para relatório)
         AnalisadorLexico lxTokens = new AnalisadorLexico(source);
-        List<Token> tokens = lxTokens.listarTodos();
+        List<Token> tokens = new ArrayList<>();
+        while (true) {
+            Token t = lxTokens.proximo();
+            tokens.add(t);
+            if (t.getTipo() == TokenTipo.EOF) break;
+        }
         List<Diagnostico> diagsLexColeta = lxTokens.getDiagnosticos();
 
         // 2) SINTÁTICO (novo léxico para o parser)
@@ -58,7 +69,7 @@ public class Main {
         List<Diagnostico> diagsLex = lx.getDiagnosticos();    // do parsing real
         List<Diagnostico> diagsSint = ps.getDiagnosticos();
 
-        // 3) SEMÂNTICO
+        // 3) SEMÂNTICO (se já existir implementação)
         AnalisadorSemantico sem = new AnalisadorSemantico();
         sem.analisar(programa);
         List<Diagnostico> diagsSem = sem.getDiagnosticos();
@@ -87,24 +98,44 @@ public class Main {
 
         // TABELA DE SÍMBOLOS
         System.out.println(">>> TABELA DE SIMBOLOS");
-        for (var e : sem.getTabela().todas().values()) {
-            System.out.printf("  %-12s : %-5s  @%d:%d\n", e.nome, e.tipo, e.linha, e.coluna);
+        if (sem.getTabela() != null && sem.getTabela().todas() != null && !sem.getTabela().todas().isEmpty()) {
+            for (var e : sem.getTabela().todas().values()) {
+                System.out.printf("  %-12s : %-7s @%d:%d\n", e.nome, e.tipo, e.linha, e.coluna);
+            }
+        } else {
+            System.out.println("  (vazia ou não construída nesta etapa)");
         }
 
-        // DIAGNÓSTICOS
+        // DIAGNÓSTICOS (léxico da coleta + léxico do parsing + sintático + semântico)
         List<Diagnostico> all = new ArrayList<>();
-        all.addAll(diagsLexColeta);  // do primeiro léxico (coleta de tokens)
-        all.addAll(diagsLex);        // do léxico usado no parser (deve ser igual; mantido por segurança)
+        all.addAll(diagsLexColeta);
+        all.addAll(diagsLex);
         all.addAll(diagsSint);
         all.addAll(diagsSem);
 
+        System.out.println(">>> DIAGNOSTICOS");
         if (all.isEmpty()) {
-            System.out.println(">>> DIAGNOSTICOS");
             System.out.println("  (nenhum)");
         } else {
-            System.out.println(">>> DIAGNOSTICOS");
             for (Diagnostico d : all) System.out.println("  " + d);
         }
+
+        // RESUMO + retorno (exit code será tratado no main)
+        int cLex = 0, cSin = 0, cSem = 0;
+        for (Diagnostico d : all) {
+            switch (d.getTipo()) {
+                case LEXICO -> cLex++;
+                case SINTATICO -> cSin++;
+                case SEMANTICO -> cSem++;
+            }
+        }
+        int total = cLex + cSin + cSem;
+
+        System.out.println(">>> RESUMO");
+        System.out.printf("  LEXICO: %d  SINTATICO: %d  SEMANTICO: %d  TOTAL: %d\n",
+                cLex, cSin, cSem, total);
+
+        return total > 0;
     }
 
     // -------- utilidades leves (não criamos novas classes) --------

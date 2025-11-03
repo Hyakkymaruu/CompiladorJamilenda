@@ -1,30 +1,41 @@
 package mlp.Lexico;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import mlp.Erros.Diagnostico;
 import mlp.Erros.Diagnostico.Tipo;
 
+/**
+ * Analisador léxico da MLP.
+ * - Mantém compatibilidade com os tokens já usados no Sintático.
+ * - Adiciona diagnósticos léxicos padronizados (códigos 01xx).
+ *
+ * Códigos emitidos:
+ *  0101 - símbolo não reconhecido
+ *  0102 - número real inválido (ex.: "5.", ".5")
+ *  0103 - identificador malformado (ex.: contém '_' na MLP atual)
+ */
 public class AnalisadorLexico {
 
-    // ---- Códigos locais de erro léxico (01xx) ----
-    private static final int LEX_SIMBOLO_DESCONHECIDO = 101; // caractere não pertence ao alfabeto
-    private static final int LEX_REAL_INVALIDO        = 102; // "5." (ponto sem dígitos após)
-    private static final int LEX_IDENT_MALFORMADO     = 103; // reservado p/ futuro
+    // ------------------- Códigos Léxicos -------------------
+    private static final int LEX_SIMBOLO_DESCONHECIDO = 101; // 0101 no catálogo
+    private static final int LEX_REAL_INVALIDO        = 102; // 0102
+    private static final int LEX_IDENT_MALFORMADO     = 103; // 0103
 
-    // ---- Entrada ----
+    // ------------------- Estado -------------------
     private final String fonte;
     private final int n;
-    private int i = 0;        // índice no buffer
-    private int linha = 1;    // 1-based
-    private int coluna = 1;   // 1-based
+    private int i = 0;
+    private int linha = 1;
+    private int coluna = 1;
 
-    // ---- Saída ----
     private final List<Diagnostico> diagnosticos = new ArrayList<>();
 
     public AnalisadorLexico(String fonte) {
-        this.fonte = fonte != null ? fonte : "";
+        this.fonte = (fonte == null) ? "" : fonte;
         this.n = this.fonte.length();
     }
 
@@ -32,213 +43,265 @@ public class AnalisadorLexico {
         return diagnosticos;
     }
 
-    // ------------------------------------------------------
-    // Interface pública
-    // ------------------------------------------------------
+    // ------------------- API -------------------
     public Token proximo() {
         consumirEspacos();
 
-        if (fim()) return novo(TokenTipo.EOF, "<EOF>", posLinha(), posColuna());
+        if (fim()) return new Token(TokenTipo.EOF, "<eof>", linha, coluna);
 
         char c = peek();
 
-        // Delimitadores simples
-        if (c == '(') { avancar(); return novo(TokenTipo.ABRE_PAR, "(", linha, coluna - 1); }
-        if (c == ')') { avancar(); return novo(TokenTipo.FECHA_PAR, ")", linha, coluna - 1); }
-        if (c == ',') { avancar(); return novo(TokenTipo.VIRGULA, ",", linha, coluna - 1); }
-        if (c == ';') { avancar(); return novo(TokenTipo.PONTO_VIRG, ";", linha, coluna - 1); }
-        if (c == '+') { avancar(); return novo(TokenTipo.OP_MAIS, "+", linha, coluna - 1); }
-        if (c == '*') { avancar(); return novo(TokenTipo.OP_MULT, "*", linha, coluna - 1); }
-        if (c == '/') { avancar(); return novo(TokenTipo.OP_DIV,  "/", linha, coluna - 1); }
-        if (c == '=') {
-            // '=' ou '=='
-            if (lookaheadEq('=')) {
-                avancar(); avancar();
-                return novo(TokenTipo.OP_EQ, "==", linha, coluna - 2);
-            } else {
-                avancar();
-                return novo(TokenTipo.OP_ATRIB, "=", linha, coluna - 1);
+        // Delimitadores/operadores simples
+        switch (c) {
+            case '(' -> { advance(); return tok(TokenTipo.ABRE_PAR, "("); }
+            case ')' -> { advance(); return tok(TokenTipo.FECHA_PAR, ")"); }
+            case ',' -> { advance(); return tok(TokenTipo.VIRGULA, ","); }
+            case ';' -> { advance(); return tok(TokenTipo.PONTO_VIRG, ";"); }
+            case '+' -> { advance(); return tok(TokenTipo.OP_MAIS, "+"); }
+            case '*' -> { advance(); return tok(TokenTipo.OP_MULT, "*"); }
+            case '/' -> { advance(); return tok(TokenTipo.OP_DIV, "/"); }
+            case '=' -> {
+                advance();
+                if (match('=')) return tok(TokenTipo.OP_EQ, "==");
+                return tok(TokenTipo.OP_ATRIB, "=");
+            }
+            case '!' -> {
+                advance();
+                if (match('=')) return tok(TokenTipo.OP_NE, "!=");
+                // '!' isolado não existe na MLP
+                addDiagLex(LEX_SIMBOLO_DESCONHECIDO, "símbolo não reconhecido", "!");
+                return new Token(TokenTipo.INVALIDO, "!", linha, coluna);
+            }
+            case '<' -> {
+                advance();
+                if (match('=')) return tok(TokenTipo.OP_LE, "<=");
+                return tok(TokenTipo.OP_LT, "<");
+            }
+            case '>' -> {
+                advance();
+                if (match('=')) return tok(TokenTipo.OP_GE, ">=");
+                return tok(TokenTipo.OP_GT, ">");
+            }
+            case '$' -> {
+                // START '$' ou END '$.'
+                int lin = linha, col = coluna;
+                advance();
+                if (match('.')) return new Token(TokenTipo.END, "$.", lin, col);
+                return new Token(TokenTipo.START, "$", lin, col);
+            }
+            default -> {
+                // segue abaixo (ident/numero/palavra-chave/RESTO)
             }
         }
-        if (c == '>') {
-            if (lookaheadEq('=')) { avancar(); avancar(); return novo(TokenTipo.OP_GE, ">=", linha, coluna - 2); }
-            avancar(); return novo(TokenTipo.OP_GT, ">", linha, coluna - 1);
-        }
-        if (c == '<') {
-            if (lookaheadEq('=')) { avancar(); avancar(); return novo(TokenTipo.OP_LE, "<=", linha, coluna - 2); }
-            avancar(); return novo(TokenTipo.OP_LT, "<", linha, coluna - 1);
-        }
-        if (c == '!') {
-            if (lookaheadEq('=')) { avancar(); avancar(); return novo(TokenTipo.OP_NE, "!=", linha, coluna - 2); }
-            // '!' sozinho não existe na MLP
-            int lin = linha, col = coluna;
-            avancar();
-            erro(LEX_SIMBOLO_DESCONHECIDO, "símbolo não reconhecido", lin, col, "!");
-            return novo(TokenTipo.INVALIDO, "!", lin, col);
+
+        // Palavra-chave "RESTO" (operador)
+        if (isLetra(c)) {
+            return scanIdentOuPalavra();
         }
 
-        // '$' e '$.' (START/END)
-        if (c == '$') {
-            int lin = linha, col = coluna;
-            avancar();
-            if (!fim() && peek() == '.') {
-                avancar();
-                return novo(TokenTipo.END, "$.", lin, col);
-            }
-            return novo(TokenTipo.START, "$", lin, col);
-        }
-
-        // Números (inteiro | real)
-        if (isDigit(c) || c == '.') {
+        // Número (int/real)
+        if (isDigito(c) || c == '.') {
             return scanNumero();
         }
 
-        // Identificadores / palavras reservadas / operador RESTO
-        if (isLetter(c)) {
-            return scanIdentOuReservado();
-        }
-
-        // Qualquer outro caractere
-        int lin = linha, col = coluna;
-        char inval = c;
-        avancar();
-        erro(LEX_SIMBOLO_DESCONHECIDO, "símbolo não reconhecido", lin, col, String.valueOf(inval));
-        return novo(TokenTipo.INVALIDO, String.valueOf(inval), lin, col);
+        // Qualquer outro símbolo é inválido
+        String lex = String.valueOf(c);
+        addDiagLex(LEX_SIMBOLO_DESCONHECIDO, "símbolo não reconhecido", lex);
+        advance(); // consome para evitar loop
+        return new Token(TokenTipo.INVALIDO, lex, linha, coluna);
     }
 
-    // ------------------------------------------------------
-    // Scanners
-    // ------------------------------------------------------
+    // ------------------- Scanners -------------------
+    private Token scanIdentOuPalavra() {
+        int lin = linha, col = coluna;
+
+        // primeira letra garantida
+        StringBuilder sb = new StringBuilder();
+        sb.append(peek());
+        advance();
+
+        boolean malformado = false;
+        while (!fim()) {
+            char ch = peek();
+            if (isLetra(ch) || isDigito(ch)) {
+                sb.append(ch);
+                advance();
+            } else if (ch == '_') {
+                // não permitimos '_' na MLP -> malformado, mas seguimos consumindo '_' e prosseguimos
+                malformado = true;
+                sb.append(ch);
+                advance();
+            } else {
+                break;
+            }
+        }
+        String lex = sb.toString();
+
+        // Palavras-chave (inclui tipos e lógicos)
+        TokenTipo kw = KEYWORDS.get(lex);
+        if (kw != null) {
+            return new Token(kw, lex, lin, col);
+        }
+
+        // Operador "RESTO"
+        if ("RESTO".equals(lex)) {
+            return new Token(TokenTipo.OP_RESTO, lex, lin, col);
+        }
+
+        if (malformado) {
+            addDiag( Tipo.LEXICO, LEX_IDENT_MALFORMADO, "identificador malformado", lin, col, lex );
+            // devolvemos IDENT mesmo assim para o parser conseguir seguir
+        }
+        return new Token(TokenTipo.IDENT, lex, lin, col);
+    }
 
     private Token scanNumero() {
         int lin = linha, col = coluna;
-        int ini = i;
 
-        if (peek() == '.') {
-            // Padrão: '.' digitos+  (válido)
-            avancar(); // consome '.'
-            if (!fim() && isDigit(peek())) {
-                while (!fim() && isDigit(peek())) avancar();
-                String lex = fonte.substring(ini, i);
-                return novo(TokenTipo.NUM_REAL, lex, lin, col);
-            } else {
-                // '.' não seguido de dígito -> não é número válido
-                erro(LEX_SIMBOLO_DESCONHECIDO, "símbolo não reconhecido", lin, col, ".");
-                return novo(TokenTipo.INVALIDO, ".", lin, col);
-            }
+        // Casos permitidos (adotados para este projeto):
+        //  - inteiro: DIGIT+
+        //  - real   : DIGIT+ '.' DIGIT+    (rejeitamos "5." e ".5")
+        //
+        // Observação: se vier ".5" ou "5." vamos acusar 0102 e tentar
+        //             produzir NUM_REAL/INVALIDO de forma que o parser consiga seguir.
+
+        StringBuilder sb = new StringBuilder();
+        boolean temDigitosAntes = false;
+        boolean temPonto = false;
+        boolean temDigitosDepois = false;
+
+        // Parte inteira (opcional se começar com '.')
+        while (!fim() && isDigito(peek())) {
+            temDigitosAntes = true;
+            sb.append(peek());
+            advance();
         }
 
-        // dígitos+ (inteiro potencialmente seguido de parte fracionária)
-        while (!fim() && isDigit(peek())) avancar();
-
-        // parte fracionária?
         if (!fim() && peek() == '.') {
-            // precisa ter dígitos depois do ponto para ser real
-            if (lookaheadDigit()) {
-                avancar(); // consome '.'
-                while (!fim() && isDigit(peek())) avancar();
-                String lex = fonte.substring(ini, i);
-                return novo(TokenTipo.NUM_REAL, lex, lin, col);
-            } else {
-                // "5." -> real inválido
-                String lex = fonte.substring(ini, i + 1); // inclui o '.'
-                // Consome o '.' para não travar
-                avancar();
-                erro(LEX_REAL_INVALIDO, "número real inválido (faltam dígitos após '.')", lin, col, lex);
-                // Retorna inteiro com os dígitos escaneados originalmente
-                String onlyInt = fonte.substring(ini, i - 1);
-                return novo(TokenTipo.NUM_INT, onlyInt, lin, col);
+            temPonto = true;
+            sb.append('.');
+            advance();
+            while (!fim() && isDigito(peek())) {
+                temDigitosDepois = true;
+                sb.append(peek());
+                advance();
             }
         }
 
-        String lex = fonte.substring(ini, i);
-        return novo(TokenTipo.NUM_INT, lex, lin, col);
-    }
+        String lex = sb.toString();
 
-    private Token scanIdentOuReservado() {
-        int lin = linha, col = coluna;
-        int ini = i;
-        // primeira letra
-        avancar();
-        // letras/dígitos subsequentes
-        while (!fim() && (isLetter(peek()) || isDigit(peek()))) {
-            avancar();
+        if (!temPonto) {
+            if (lex.isEmpty()) {
+                // Começou com '.' sem dígitos antes: ".???"
+                // Tentar coletar '.' + dígitos para formar um real inválido
+                if (peekPrev() == '.') {
+                    // coletar dígitos após o ponto para não travar
+                    StringBuilder sb2 = new StringBuilder(".");
+                    while (!fim() && isDigito(peek())) {
+                        sb2.append(peek());
+                        advance();
+                    }
+                    String bad = sb2.toString();
+                    addDiagLex(LEX_REAL_INVALIDO, "número real inválido", bad);
+                    return new Token(TokenTipo.NUM_REAL, bad, lin, col);
+                }
+                // fallback
+                addDiagLex(LEX_SIMBOLO_DESCONHECIDO, "símbolo não reconhecido", String.valueOf(peek()));
+                advance();
+                return new Token(TokenTipo.INVALIDO, String.valueOf(peek()), lin, col);
+            }
+            // inteiro válido
+            return new Token(TokenTipo.NUM_INT, lex, lin, col);
         }
-        String lex = fonte.substring(ini, i);
 
-        // Palavras reservadas
-        switch (lex) {
-            case "se":       return novo(TokenTipo.KW_SE, lex, lin, col);
-            case "entao":    return novo(TokenTipo.KW_ENTAO, lex, lin, col);
-            case "senao":    return novo(TokenTipo.KW_SENAO, lex, lin, col);
-            case "enquanto": return novo(TokenTipo.KW_ENQUANTO, lex, lin, col);
-            case "inteiro":  return novo(TokenTipo.KW_INTEIRO, lex, lin, col);
-            case "real":     return novo(TokenTipo.KW_REAL, lex, lin, col);
-            case "caracter": return novo(TokenTipo.KW_CARACTER, lex, lin, col);
-            case "E":        return novo(TokenTipo.KW_E, lex, lin, col);
-            case "OU":       return novo(TokenTipo.KW_OU, lex, lin, col);
-            case "NAO":      return novo(TokenTipo.KW_NAO, lex, lin, col);
-            case "RESTO":    return novo(TokenTipo.OP_RESTO, lex, lin, col);
-            default:         return novo(TokenTipo.IDENT, lex, lin, col);
+        // Tem ponto: precisa ter dígitos nos dois lados
+        if (temDigitosAntes && temDigitosDepois) {
+            return new Token(TokenTipo.NUM_REAL, lex, lin, col);
         }
+
+        // Casos inválidos: ".5" ou "5."
+        addDiagLex(LEX_REAL_INVALIDO, "número real inválido", lex);
+        // Ainda assim devolvemos NUM_REAL para o parser progredir
+        return new Token(TokenTipo.NUM_REAL, lex, lin, col);
     }
 
-    // ------------------------------------------------------
-    // Utilitários
-    // ------------------------------------------------------
-    private boolean fim() { return i >= n; }
-    private char peek()   { return fonte.charAt(i); }
-    private void avancar() {
-        char c = fonte.charAt(i++);
-        if (c == '\n') { linha++; coluna = 1; } else { coluna++; }
-    }
-    private boolean lookaheadEq(char ch) {
-        return (i + 1 < n) && (fonte.charAt(i + 1) == ch);
-    }
-    private boolean lookaheadDigit() {
-        return (i + 1 < n) && Character.isDigit(fonte.charAt(i + 1));
-    }
-    private boolean isDigit(char c) { return c >= '0' && c <= '9'; }
-    private boolean isLetter(char c) {
-        return (c >= 'a' && c <= 'z') ||
-               (c >= 'A' && c <= 'Z');
-    }
-    private int posLinha() { return linha; }
-    private int posColuna(){ return coluna; }
-
+    // ------------------- Utilidades -------------------
     private void consumirEspacos() {
         while (!fim()) {
             char c = peek();
-            if (c == ' ' || c == '\t' || c == '\r' || c == '\n') {
-                avancar();
+            if (c == ' ' || c == '\t' || c == '\r') {
+                advance();
+            } else if (c == '\n') {
+                advanceLinha();
             } else {
                 break;
             }
         }
     }
 
-    private Token novo(TokenTipo tipo, String lexema, int lin, int col) {
-        return new Token(tipo, lexema, lin, col);
+    private Token tok(TokenTipo tipo, String lexema) {
+        return new Token(tipo, lexema, linha, coluna);
     }
 
-    private void erro(int codigo, String msg, int lin, int col, String lex) {
-        diagnosticos.add(new Diagnostico(Tipo.LEXICO, codigo, msg, lin, col, lex));
+    private void addDiagLex(int codigo, String msg, String lexema) {
+        addDiag(Tipo.LEXICO, codigo, msg, linha, coluna, lexema);
     }
 
-    // ------------------------------------------------------
-    // NOVO: listarTodos() — para compatibilidade com o Main
-    // Não altera o estado do léxico atual: usa um léxico temporário.
-    // ------------------------------------------------------
-    public List<Token> listarTodos() {
-        List<Token> out = new ArrayList<>();
-        AnalisadorLexico tmp = new AnalisadorLexico(this.fonte);
-        Token t;
-        do {
-            t = tmp.proximo();
-            out.add(t);
-        } while (t.getTipo() != TokenTipo.EOF);
-        // Se quiser refletir também os diagnósticos capturados nesta passagem:
-        // this.diagnosticos.addAll(tmp.getDiagnosticos());
-        return out;
+    private void addDiag(Tipo t, int codigo, String msg, int lin, int col, String lex) {
+        diagnosticos.add(new Diagnostico(t, codigo, msg, lin, col, lex));
+    }
+
+    private boolean match(char esperado) {
+        if (fim() || peek() != esperado) return false;
+        advance();
+        return true;
+    }
+
+    private boolean fim() { return i >= n; }
+
+    private char peek() { return fonte.charAt(i); }
+
+    private char peekPrev() { return (i == 0) ? '\0' : fonte.charAt(i - 1); }
+
+    private void advance() {
+        char c = fonte.charAt(i++);
+        if (c == '\n') {
+            linha++;
+            coluna = 1;
+        } else {
+            coluna++;
+        }
+    }
+
+    private void advanceLinha() {
+        i++;
+        linha++;
+        coluna = 1;
+    }
+
+    private static boolean isLetra(char c) {
+        return (c >= 'a' && c <= 'z')
+            || (c >= 'A' && c <= 'Z');
+    }
+
+    private static boolean isDigito(char c) {
+        return (c >= '0' && c <= '9');
+    }
+
+    // Mapa de palavras-chave
+    private static final Map<String, TokenTipo> KEYWORDS = new HashMap<>();
+    static {
+        KEYWORDS.put("inteiro",  TokenTipo.KW_INTEIRO);
+        KEYWORDS.put("real",     TokenTipo.KW_REAL);
+        KEYWORDS.put("caracter", TokenTipo.KW_CARACTER);
+
+        KEYWORDS.put("se",       TokenTipo.KW_SE);
+        KEYWORDS.put("entao",    TokenTipo.KW_ENTAO);
+        KEYWORDS.put("senao",    TokenTipo.KW_SENAO);
+        KEYWORDS.put("enquanto", TokenTipo.KW_ENQUANTO);
+
+        KEYWORDS.put("E",        TokenTipo.KW_E);
+        KEYWORDS.put("OU",       TokenTipo.KW_OU);
+        KEYWORDS.put("NAO",      TokenTipo.KW_NAO);
     }
 }
