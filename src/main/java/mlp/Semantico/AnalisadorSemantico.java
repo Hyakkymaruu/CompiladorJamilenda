@@ -12,6 +12,12 @@ import mlp.ast.AstNode;
 
 public class AnalisadorSemantico {
 
+    // Códigos padronizados
+    private static final int SEM_VAR_NAO_DECL      = 2001;
+    private static final int SEM_VAR_REDECLARADA   = 2002;
+    private static final int SEM_TIPO_INCOMPATIVEL = 2003;
+    private static final int SEM_COND_NAO_BOLEANA  = 2004;
+
     private final TabelaSimbolos ts = new TabelaSimbolos();
     private final List<Diagnostico> diagnosticos = new ArrayList<>();
 
@@ -24,10 +30,10 @@ public class AnalisadorSemantico {
         // Percorre filhos do Programa (Decl e Comandos)
         for (AstNode filho : programa.getFilhos()) {
             switch (filho.getKind()) {
-                case "Decl" -> analisarDecl(filho);
-                case "CmdAtrib" -> analisarCmdAtrib(filho);
-                case "CmdSe" -> analisarCmdSe(filho);
-                case "CmdEnquanto" -> analisarCmdEnquanto(filho);
+                case "Decl"         -> analisarDecl(filho);
+                case "CmdAtrib"     -> analisarCmdAtrib(filho);
+                case "CmdSe"        -> analisarCmdSe(filho);
+                case "CmdEnquanto"  -> analisarCmdEnquanto(filho);
                 default -> { /* ignorar outros rótulos (ex.: ComandoInvalido) */ }
             }
         }
@@ -57,9 +63,11 @@ public class AnalisadorSemantico {
                 String nome = tk.getLexema();
 
                 if (!ts.declarar(nome, tipo, tk.getLinha(), tk.getColuna())) {
-                    diagnosticos.add(new Diagnostico(Tipo.SEMANTICO, 21,
-                        "identificador já declarado: " + nome,
-                        tk.getLinha(), tk.getColuna(), nome));
+                    diagnosticos.add(new Diagnostico(
+                        Tipo.SEMANTICO, SEM_VAR_REDECLARADA,
+                        "variável já declarada: " + nome,
+                        tk.getLinha(), tk.getColuna(), nome
+                    ));
                 }
             }
         }
@@ -96,15 +104,17 @@ public class AnalisadorSemantico {
 
         // Compatibilidade: igual ou (INT -> REAL)
         if (!compatAtrib(tDest, tExpr)) {
-            diagnosticos.add(new Diagnostico(Tipo.SEMANTICO, 22,
+            diagnosticos.add(new Diagnostico(
+                Tipo.SEMANTICO, SEM_TIPO_INCOMPATIVEL,
                 "tipos incompatíveis na atribuição: " + tDest + " = " + tExpr,
-                (idTk != null ? idTk.getLinha() : 0), (idTk != null ? idTk.getColuna() : 0), nome));
+                (idTk != null ? idTk.getLinha() : 0),
+                (idTk != null ? idTk.getColuna() : 0),
+                nome
+            ));
         }
     }
 
     private void analisarCmdSe(AstNode n) {
-        // CmdSe
-        //   Then( cond já analisada antes? não – a cond é filho direto do CmdSe )
         // Estrutura vinda do parser:
         // CmdSe
         //   (condição)
@@ -116,9 +126,13 @@ public class AnalisadorSemantico {
         TipoSimples tCond = tipoCond(cond);
         if (tCond != TipoSimples.BOOL && tCond != TipoSimples.ERRO) {
             Token t = cond.getToken();
-            diagnosticos.add(new Diagnostico(Tipo.SEMANTICO, 22,
+            diagnosticos.add(new Diagnostico(
+                Tipo.SEMANTICO, SEM_COND_NAO_BOLEANA,
                 "condição de 'se' deve ser booleana",
-                (t != null ? t.getLinha() : 0), (t != null ? t.getColuna() : 0), null));
+                (t != null ? t.getLinha() : 0),
+                (t != null ? t.getColuna() : 0),
+                null
+            ));
         }
 
         // analisar comandos internos (then/else), se existirem
@@ -126,9 +140,9 @@ public class AnalisadorSemantico {
             AstNode bloco = n.getFilhos().get(i);
             for (AstNode cmd : bloco.getFilhos()) {
                 switch (cmd.getKind()) {
-                    case "CmdAtrib" -> analisarCmdAtrib(cmd);
-                    case "CmdSe" -> analisarCmdSe(cmd);
-                    case "CmdEnquanto" -> analisarCmdEnquanto(cmd);
+                    case "CmdAtrib"     -> analisarCmdAtrib(cmd);
+                    case "CmdSe"        -> analisarCmdSe(cmd);
+                    case "CmdEnquanto"  -> analisarCmdEnquanto(cmd);
                     default -> {}
                 }
             }
@@ -145,9 +159,13 @@ public class AnalisadorSemantico {
         TipoSimples tCond = tipoCond(cond);
         if (tCond != TipoSimples.BOOL && tCond != TipoSimples.ERRO) {
             Token t = cond.getToken();
-            diagnosticos.add(new Diagnostico(Tipo.SEMANTICO, 22,
+            diagnosticos.add(new Diagnostico(
+                Tipo.SEMANTICO, SEM_COND_NAO_BOLEANA,
                 "condição de 'enquanto' deve ser booleana",
-                (t != null ? t.getLinha() : 0), (t != null ? t.getColuna() : 0), null));
+                (t != null ? t.getLinha() : 0),
+                (t != null ? t.getColuna() : 0),
+                null
+            ));
         }
 
         // corpo
@@ -155,9 +173,9 @@ public class AnalisadorSemantico {
             AstNode body = n.getFilhos().get(1);
             for (AstNode cmd : body.getFilhos()) {
                 switch (cmd.getKind()) {
-                    case "CmdAtrib" -> analisarCmdAtrib(cmd);
-                    case "CmdSe" -> analisarCmdSe(cmd);
-                    case "CmdEnquanto" -> analisarCmdEnquanto(cmd);
+                    case "CmdAtrib"     -> analisarCmdAtrib(cmd);
+                    case "CmdSe"        -> analisarCmdSe(cmd);
+                    case "CmdEnquanto"  -> analisarCmdEnquanto(cmd);
                     default -> {}
                 }
             }
@@ -179,9 +197,9 @@ public class AnalisadorSemantico {
                 Token tk = e.getToken();
                 if (tk == null) return TipoSimples.ERRO;
                 return switch (tk.getTipo()) {
-                    case NUM_INT -> TipoSimples.INT;
+                    case NUM_INT  -> TipoSimples.INT;
                     case NUM_REAL -> TipoSimples.REAL;
-                    default -> TipoSimples.ERRO;
+                    default       -> TipoSimples.ERRO;
                 };
             }
             case "OpMais" -> {
@@ -199,23 +217,30 @@ public class AnalisadorSemantico {
                 TipoSimples b = tipoExpr(e.getFilhos().get(1));
                 if (a != TipoSimples.INT || b != TipoSimples.INT) {
                     Token t = e.getToken();
-                    diagnosticos.add(new Diagnostico(Tipo.SEMANTICO, 22,
+                    diagnosticos.add(new Diagnostico(
+                        Tipo.SEMANTICO, SEM_TIPO_INCOMPATIVEL,
                         "RESTO requer operandos inteiros",
-                        (t != null ? t.getLinha() : 0), (t != null ? t.getColuna() : 0), null));
+                        (t != null ? t.getLinha() : 0),
+                        (t != null ? t.getColuna() : 0),
+                        null
+                    ));
                     return TipoSimples.ERRO;
                 }
                 return TipoSimples.INT;
             }
             default -> {
-                // Se for um nó de relação usado por engano em expressão, marque erro
+                // Nó lógico/relacional indevido dentro de expressão numérica
                 if ("Rel".equals(k) || "Nao".equals(k) || "OpE".equals(k) || "OpOU".equals(k)) {
                     Token t = e.getToken();
-                    diagnosticos.add(new Diagnostico(Tipo.SEMANTICO, 22,
+                    diagnosticos.add(new Diagnostico(
+                        Tipo.SEMANTICO, SEM_TIPO_INCOMPATIVEL,
                         "expressão numérica inválida (nó lógico/relacional em expressão)",
-                        (t != null ? t.getLinha() : 0), (t != null ? t.getColuna() : 0), null));
+                        (t != null ? t.getLinha() : 0),
+                        (t != null ? t.getColuna() : 0),
+                        null
+                    ));
                     return TipoSimples.ERRO;
                 }
-                // Nós inválidos/placeholder
                 return TipoSimples.ERRO;
             }
         }
@@ -239,21 +264,20 @@ public class AnalisadorSemantico {
                 return TipoSimples.BOOL;
             }
             case "Rel" -> {
-                // Rel -> opndRel opRel opndRel
-                // opndRel pode ser IDENT/NUM/expr parentizada
+                // Rel -> expr opRel expr
                 TipoSimples a = tipoOpndRel(c.getFilhos().get(0));
                 TipoSimples b = tipoOpndRel(c.getFilhos().get(1));
                 if (!ehNumerico(a) || !ehNumerico(b)) return TipoSimples.ERRO;
                 return TipoSimples.BOOL;
             }
             default -> {
-                // Pode ser uma parênteseada que virou expressão numérica por engano
-                if ("Ident".equals(k) || "Numero".equals(k) || "OpMais".equals(k)
-                    || "OpMult".equals(k) || "OpDiv".equals(k) || "OpResto".equals(k)) {
-                    // condição com expressão numérica pura => ERRO
+                // Se veio expressão numérica pura como condição, é erro
+                if ("Ident".equals(k) || "Numero".equals(k)
+                    || "OpMais".equals(k) || "OpMult".equals(k)
+                    || "OpDiv".equals(k) || "OpResto".equals(k)) {
                     return TipoSimples.ERRO;
                 }
-                // Tentar avaliar recursivamente filhos (casos inesperados)
+                // fallback: tenta filho
                 if (!c.getFilhos().isEmpty()) {
                     return tipoCond(c.getFilhos().get(0));
                 }
@@ -264,13 +288,6 @@ public class AnalisadorSemantico {
 
     private TipoSimples tipoOpndRel(AstNode opnd) {
         // opndRel = IDENT | NUM_INT | NUM_REAL | '(' expressao ')'
-        String k = opnd.getKind();
-        if ("Ident".equals(k) || "Numero".equals(k)
-            || "OpMais".equals(k) || "OpMult".equals(k) || "OpDiv".equals(k) || "OpResto".equals(k)) {
-            // Se for número/ident, ou expressão numérica
-            return tipoExpr(opnd);
-        }
-        // Parênteses já foram resolvidos pelo parser como a própria expressão
         return tipoExpr(opnd);
     }
 
@@ -281,9 +298,11 @@ public class AnalisadorSemantico {
         String nome = idToken.getLexema();
         TabelaSimbolos.Entrada e = ts.obter(nome);
         if (e == null) {
-            diagnosticos.add(new Diagnostico(Tipo.SEMANTICO, 20,
-                "identificador não declarado: " + nome,
-                idToken.getLinha(), idToken.getColuna(), nome));
+            diagnosticos.add(new Diagnostico(
+                Tipo.SEMANTICO, SEM_VAR_NAO_DECL,
+                "variável não declarada: " + nome,
+                idToken.getLinha(), idToken.getColuna(), nome
+            ));
             return TipoSimples.ERRO;
         }
         return e.tipo;
@@ -296,9 +315,13 @@ public class AnalisadorSemantico {
     private TipoSimples promoverSoma(TipoSimples a, TipoSimples b, AstNode no) {
         if (!ehNumerico(a) || !ehNumerico(b)) {
             Token t = no.getToken();
-            diagnosticos.add(new Diagnostico(Tipo.SEMANTICO, 22,
+            diagnosticos.add(new Diagnostico(
+                Tipo.SEMANTICO, SEM_TIPO_INCOMPATIVEL,
                 "soma requer operandos numéricos",
-                (t != null ? t.getLinha() : 0), (t != null ? t.getColuna() : 0), null));
+                (t != null ? t.getLinha() : 0),
+                (t != null ? t.getColuna() : 0),
+                null
+            ));
             return TipoSimples.ERRO;
         }
         return (a == TipoSimples.REAL || b == TipoSimples.REAL) ? TipoSimples.REAL : TipoSimples.INT;
@@ -307,12 +330,15 @@ public class AnalisadorSemantico {
     private TipoSimples promoverMulDiv(TipoSimples a, TipoSimples b, AstNode no) {
         if (!ehNumerico(a) || !ehNumerico(b)) {
             Token t = no.getToken();
-            diagnosticos.add(new Diagnostico(Tipo.SEMANTICO, 22,
+            diagnosticos.add(new Diagnostico(
+                Tipo.SEMANTICO, SEM_TIPO_INCOMPATIVEL,
                 "multiplicação/divisão requerem operandos numéricos",
-                (t != null ? t.getLinha() : 0), (t != null ? t.getColuna() : 0), null));
+                (t != null ? t.getLinha() : 0),
+                (t != null ? t.getColuna() : 0),
+                null
+            ));
             return TipoSimples.ERRO;
         }
-        // divisão pode produzir real se algum operando for real
         return (a == TipoSimples.REAL || b == TipoSimples.REAL) ? TipoSimples.REAL : TipoSimples.INT;
     }
 
