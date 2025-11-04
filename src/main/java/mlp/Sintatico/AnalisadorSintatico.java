@@ -1,7 +1,6 @@
 package mlp.Sintatico;
 
 import java.util.ArrayList;
-import java.util.EnumSet;
 import java.util.List;
 
 import mlp.Erros.Diagnostico;
@@ -11,385 +10,480 @@ import mlp.Lexico.Token;
 import mlp.Lexico.TokenTipo;
 import mlp.ast.AstNode;
 
-/** Parser LL(1) por descida recursiva para a MLP. */
+/**
+ * Parser recursivo-descendente com recuperação de erros.
+ * Mantém diagnóstico rico (não “para” no 1º erro).
+ */
 public class AnalisadorSintatico {
 
-    // ----------------- Debug -----------------
-    private boolean DEBUG = false; // mude para true se quiser logar
-    public void setDebug(boolean value) { this.DEBUG = value; }
-    private void dbg(String msg) { if (DEBUG) System.out.println("[DBG] " + msg); }
-    private static String tokStr(Token t) {
-        if (t == null) return "<null>";
-        return t.getTipo() + "('" + t.getLexema() + "')@" + t.getLinha() + ":" + t.getColuna();
-    }
-
-    // ----------------- Códigos locais (evita dependência de Diagnostico.*) -----------------
-    private static final int SIN_COMANDO_INVALIDO   = 1001;
-    private static final int SIN_ESPERAVA_START     = 1002;
-    private static final int SIN_ESPERAVA_END       = 1003;
-    private static final int SIN_ESPERAVA_TIPO      = 1004;
-    private static final int SIN_ESPERAVA_IDENT     = 1005;
-    private static final int SIN_ESPERAVA_PV_DECL   = 1006;
-    private static final int SIN_ESPERAVA_IDENT_APV = 1007; // ident após vírgula
-    private static final int SIN_ESPERAVA_OP_REL    = 1010;
-    private static final int SIN_ESPERAVA_FP_EXP    = 1012; // fecha parêntese após expressão
-    private static final int SIN_ESPERAVA_FP_COND   = 1013; // fecha parêntese após condição
-    private static final int SIN_ESPERAVA_ENTAO     = 1014;
-    private static final int SIN_ESPERAVA_ATR       = 1015; // '='
-    private static final int SIN_FATOR_INVALIDO     = 1016;
-    private static final int SIN_ESPERAVA_PV_ATR    = 1017;
-
-    // ----------------- Estado -----------------
     private final AnalisadorLexico lx;
-    private Token atual;
-    private Token ultimo; // último token consumido
-
     private final List<Diagnostico> diagnosticos = new ArrayList<>();
+    private Token atual;
 
     public AnalisadorSintatico(AnalisadorLexico lx) {
         this.lx = lx;
-        this.atual = lx.proximo(); // priming
-        dbg("init lookahead=" + tokStr(atual));
+        this.atual = lx.proximo();
     }
 
-    public List<Diagnostico> getDiagnosticos() { return diagnosticos; }
-
-    // ----------------- Entrada pública -----------------
-    /** programa = START { declar } { comando } END */
-    public AstNode parsePrograma() {
-        AstNode prog = new AstNode("Programa");
-
-        expect(TokenTipo.START, SIN_ESPERAVA_START, "esperava início de programa '$'");
-
-        // { declar }
-        while (isTipo(atual.getTipo())) {
-            prog.add(parseDeclar());
-        }
-
-        // { comando }
-        while (FIRST_COMANDO.contains(atual.getTipo())) {
-            prog.add(parseComando());
-        }
-
-        expect(TokenTipo.END, SIN_ESPERAVA_END, "esperava fim de programa '$.'");
-        return prog;
+    public List<Diagnostico> getDiagnosticos() {
+        return diagnosticos;
     }
 
-    // ----------------- Produções -----------------
-
-    /** declar = tipo listaIdent ';' */
-    private AstNode parseDeclar() {
-        AstNode decl = new AstNode("Decl");
-
-        // tipo
-        TokenTipo t = atual.getTipo();
-        if (isTipo(t)) {
-            decl.add(new AstNode("Tipo", atual));
-            advance();
-        } else {
-            error(SIN_ESPERAVA_TIPO, "esperava tipo ('inteiro', 'real' ou 'caracter')");
-            sincronizarAte(PONTO_VIRG_SET); // tenta chegar até ';'
-        }
-
-        // listaIdent = IDENT { ',' IDENT }
-        if (match(TokenTipo.IDENT)) {
-            AstNode lista = new AstNode("ListaIdent").add(new AstNode("Ident", last()));
-            while (match(TokenTipo.VIRGULA)) {
-                if (match(TokenTipo.IDENT)) {
-                    lista.add(new AstNode("Ident", last()));
-                } else {
-                    error(SIN_ESPERAVA_IDENT_APV, "esperava identificador após ','");
-                    break;
-                }
-            }
-            decl.add(lista);
-        } else {
-            error(SIN_ESPERAVA_IDENT, "esperava identificador na declaração");
-        }
-
-        expect(TokenTipo.PONTO_VIRG, SIN_ESPERAVA_PV_DECL, "esperava ';' ao final da declaração");
-        return decl;
-    }
-
-    /** comando = cmdAtr | cmdSe | cmdEnquanto */
-    private AstNode parseComando() {
-        dbg("parseComando lookahead=" + tokStr(atual));
-        switch (atual.getTipo()) {
-            case IDENT:
-                dbg("-> escolha: CmdAtrib");
-                return parseCmdAtr();
-            case KW_SE:
-                dbg("-> escolha: CmdSe");
-                return parseCmdSe();
-            case KW_ENQUANTO:
-                dbg("-> escolha: CmdEnquanto");
-                return parseCmdEnquanto();
-            default:
-                error(SIN_COMANDO_INVALIDO, "comando inválido");
-                // recuperação: consome até ';' ou início de próximo comando/END
-                sincronizarAte(SYNC_COMANDO);
-                if (atual.getTipo() == TokenTipo.PONTO_VIRG) advance();
-                return new AstNode("ComandoInvalido");
-        }
-    }
-
-    /** cmdAtr = IDENT '=' expressao ';' */
-    private AstNode parseCmdAtr() {
-        AstNode n = new AstNode("CmdAtrib");
-        Token id = expectR(TokenTipo.IDENT, SIN_ESPERAVA_IDENT, "esperava identificador na atribuição");
-        n.add(new AstNode("LValue", id));
-
-        expect(TokenTipo.OP_ATRIB, SIN_ESPERAVA_ATR, "esperava '=' na atribuição");
-        n.add(parseExpressao());
-
-        expect(TokenTipo.PONTO_VIRG, SIN_ESPERAVA_PV_ATR, "esperava ';' ao final da atribuição");
-        return n;
-    }
-
-    /** cmdSe = 'se' '(' condicao ')' 'entao' comando ['senao' comando] */
-    private AstNode parseCmdSe() {
-        AstNode n = new AstNode("CmdSe");
-
-        expect(TokenTipo.KW_SE, SIN_COMANDO_INVALIDO, "esperava 'se'");
-        expect(TokenTipo.ABRE_PAR, SIN_ESPERAVA_FP_COND, "esperava '(' após 'se'");
-        n.add(parseCondicao());
-        expect(TokenTipo.FECHA_PAR, SIN_ESPERAVA_FP_COND, "esperava ')' após condição");
-        expect(TokenTipo.KW_ENTAO, SIN_ESPERAVA_ENTAO, "esperava 'entao'");
-
-        n.add(new AstNode("Then").add(parseComando()));
-
-        if (match(TokenTipo.KW_SENAO)) {
-            n.add(new AstNode("Else").add(parseComando()));
-        }
-        return n; // sem ';' no final
-    }
-
-    /** cmdEnquanto = 'enquanto' '(' condicao ')' comando */
-    private AstNode parseCmdEnquanto() {
-        AstNode n = new AstNode("CmdEnquanto");
-
-        expect(TokenTipo.KW_ENQUANTO, SIN_COMANDO_INVALIDO, "esperava 'enquanto'");
-        expect(TokenTipo.ABRE_PAR, SIN_ESPERAVA_FP_COND, "esperava '(' após 'enquanto'");
-        n.add(parseCondicao());
-        expect(TokenTipo.FECHA_PAR, SIN_ESPERAVA_FP_COND, "esperava ')' após condição");
-        n.add(new AstNode("Body").add(parseComando()));
-        return n; // sem ';' no final
-    }
-
-    // --------- Expressões numéricas ----------
-    /** expressao = termo { '+' termo } */
-    private AstNode parseExpressao() {
-        AstNode left = parseTermo();
-        while (match(TokenTipo.OP_MAIS)) {
-            Token opTok = last();
-            AstNode op = new AstNode("OpMais", opTok);
-            op.add(left);
-            op.add(parseTermo());
-            left = op;
-        }
-        return left;
-    }
-
-    /** termo = fator { ('*' | '/' | 'RESTO') fator } */
-    private AstNode parseTermo() {
-        AstNode left = parseFator();
-        while (atual.getTipo() == TokenTipo.OP_MULT
-            || atual.getTipo() == TokenTipo.OP_DIV
-            || atual.getTipo() == TokenTipo.OP_RESTO) {
-
-            Token opTok = atual; advance();
-            String kind = switch (opTok.getTipo()) {
-                case OP_MULT -> "OpMult";
-                case OP_DIV  -> "OpDiv";
-                case OP_RESTO-> "OpResto";
-                default      -> "Op?";
-            };
-            AstNode op = new AstNode(kind, opTok);
-            op.add(left);
-            op.add(parseFator());
-            left = op;
-        }
-        return left;
-    }
-
-    /** fator = IDENT | NUM_INT | NUM_REAL | '(' expressao ')' */
-    private AstNode parseFator() {
-        switch (atual.getTipo()) {
-            case IDENT: {
-                Token id = atual; advance();
-                return new AstNode("Ident", id);
-            }
-            case NUM_INT:
-            case NUM_REAL: {
-                Token num = atual; advance();
-                return new AstNode("Numero", num);
-            }
-            case ABRE_PAR: {
-                advance();
-                AstNode e = parseExpressao();
-                expect(TokenTipo.FECHA_PAR, SIN_ESPERAVA_FP_EXP, "esperava ')' após expressão");
-                return e;
-            }
-            default: {
-                error(SIN_FATOR_INVALIDO, "fator inválido em expressão");
-                Token err = atual; advance();
-                return new AstNode("FatorInvalido", err);
-            }
-        }
-    }
-
-    // --------- Condições lógicas/relacionais ----------
-    /** condicao = disjuncao */
-    private AstNode parseCondicao() {
-        return parseDisjuncao();
-    }
-
-    /** disjuncao = conjuncao { 'OU' conjuncao } */
-    private AstNode parseDisjuncao() {
-        AstNode left = parseConjuncao();
-        while (match(TokenTipo.KW_OU)) {
-            Token opTok = last();
-            AstNode op = new AstNode("OpOU", opTok);
-            op.add(left);
-            op.add(parseConjuncao());
-            left = op;
-        }
-        return left;
-    }
-
-    /** conjuncao = negacao { 'E' negacao } */
-    private AstNode parseConjuncao() {
-        AstNode left = parseNegacao();
-        while (match(TokenTipo.KW_E)) {
-            Token opTok = last();
-            AstNode op = new AstNode("OpE", opTok);
-            op.add(left);
-            op.add(parseNegacao());
-            left = op;
-        }
-        return left;
-    }
-
-    /** negacao = { 'NAO' } relacao  */
-    private AstNode parseNegacao() {
-        int count = 0;
-        List<Token> naos = new ArrayList<>();
-        while (match(TokenTipo.KW_NAO)) {
-            naos.add(last());
-            count++;
-        }
-        if (count > 0) dbg("parseNegacao: " + count + "x 'NAO' consumidos");
-
-        AstNode base = parseRelacao(); // sem '( condicao )' aqui
-
-        // empilha NAO como nós unários (associando à direita)
-        for (int k = 0; k < count; k++) {
-            AstNode nao = new AstNode("Nao", naos.get(count - 1 - k));
-            nao.add(base);
-            base = nao;
-        }
-        return base;
-    }
-
-    /** relacao = expressao opRel expressao */
-    private AstNode parseRelacao() {
-        dbg("parseRelacao lookahead=" + tokStr(atual));
-        AstNode a = parseExpressao();
-        dbg("parseRelacao: após expr-esq, lookahead=" + tokStr(atual));
-
-        Token op = expectOneOf(REL_OPS, SIN_ESPERAVA_OP_REL, "esperava operador relacional");
-        if (op.getTipo() != TokenTipo.INVALIDO) {
-            dbg("parseRelacao: operador=" + op.getTipo());
-        }
-
-        AstNode b = parseExpressao();
-        dbg("parseRelacao: após expr-dir, lookahead=" + tokStr(atual));
-
-        AstNode rel = new AstNode("Rel", op);
-        rel.add(a).add(b);
-        return rel;
-    }
-
-    // ----------------- Utilitários de parsing -----------------
-
-    private void advance() {
-        ultimo = atual;
-        atual = lx.proximo();
-        dbg("advance: agora lookahead=" + tokStr(atual) + " (consumido " + tokStr(ultimo) + ")");
-    }
-
-    private Token last() { return ultimo; }
-
-    private boolean match(TokenTipo tipo) {
+    // ---------- Núcleo utilitário ----------
+    private boolean aceita(TokenTipo tipo) {
         if (atual.getTipo() == tipo) {
-            advance();
+            atual = lx.proximo();
             return true;
         }
         return false;
     }
 
-    private Token expect(TokenTipo tipo, int codigo, String msg) {
+    private Token consome(TokenTipo tipo, int cod, String msg) {
         if (atual.getTipo() == tipo) {
             Token t = atual;
-            advance();
+            atual = lx.proximo();
             return t;
+        } else {
+            emitir(cod, msg, atual);
+            return null;
         }
-        error(codigo, msg);
-        dbg("expect falhou: esperava " + tipo + " mas viu " + tokStr(atual) + " -> inserindo token virtual");
-        return new Token(tipo, "<inserido>", atual.getLinha(), atual.getColuna());
     }
 
-    private Token expectR(TokenTipo tipo, int codigo, String msg) {
-        if (atual.getTipo() == tipo) {
-            Token t = atual;
-            advance();
-            return t;
-        }
-        error(codigo, msg);
-        dbg("expectR falhou: esperava " + tipo + " mas viu " + tokStr(atual) + " -> substituindo e consumindo 1");
-        Token t = new Token(tipo, "<recuperado>", atual.getLinha(), atual.getColuna());
-        advance();
-        return t;
-    }
-
-    private Token expectOneOf(EnumSet<TokenTipo> set, int codigo, String msg) {
-        if (set.contains(atual.getTipo())) {
-            Token t = atual; advance(); return t;
-        }
-        error(codigo, msg);
-        dbg("expectOneOf falhou: esperava um de " + set + " mas viu " + tokStr(atual));
-        return new Token(TokenTipo.INVALIDO, "<invalido>", atual.getLinha(), atual.getColuna());
-    }
-
-    private void error(int codigo, String mensagem) {
+    private void emitir(int codigo, String msg, Token t) {
         diagnosticos.add(new Diagnostico(
-            Tipo.SINTATICO, codigo, mensagem, atual.getLinha(), atual.getColuna(), atual.getLexema()
+                Tipo.SINTATICO, codigo, msg,
+                t != null ? t.getLinha() : 0,
+                t != null ? t.getColuna() : 0,
+                t != null ? t.getLexema() : null
         ));
     }
 
-    private void sincronizarAte(EnumSet<TokenTipo> conjunto) {
-        while (!conjunto.contains(atual.getTipo()) && atual.getTipo() != TokenTipo.EOF) {
-            advance();
+    /** Sincroniza até o fim de comando: ';', 'se', 'enquanto', END, EOF. */
+    private void syncAteFimComando() {
+        while (true) {
+            TokenTipo tp = atual.getTipo();
+            if (tp == TokenTipo.PONTO_VIRG
+                    || tp == TokenTipo.KW_SE
+                    || tp == TokenTipo.KW_ENQUANTO
+                    || tp == TokenTipo.END
+                    || tp == TokenTipo.EOF) {
+                return;
+            }
+            atual = lx.proximo();
         }
     }
 
-    // ----------------- Conjuntos auxiliares -----------------
+    /** Sincroniza especificamente após erro em declaração:
+     * para em ';' **ou** em tokens que iniciam **comando** (IDENT, SE, ENQUANTO), ou em END/EOF.
+     * Se encontrar ';', consome; se encontrar início de comando, NÃO consome (deixa para o próximo passo). */
+    private void syncDeclFimOuInicioComando() {
+        while (true) {
+            TokenTipo tp = atual.getTipo();
+            if (tp == TokenTipo.PONTO_VIRG) { aceita(TokenTipo.PONTO_VIRG); return; }
+            if (tp == TokenTipo.IDENT
+             || tp == TokenTipo.KW_SE
+             || tp == TokenTipo.KW_ENQUANTO
+             || tp == TokenTipo.END
+             || tp == TokenTipo.EOF) {
+                return; // não consome; deixa o próximo passo tratar
+            }
+            atual = lx.proximo(); // come lixo
+        }
+    }
 
-    private static final EnumSet<TokenTipo> REL_OPS = EnumSet.of(
-        TokenTipo.OP_EQ, TokenTipo.OP_NE, TokenTipo.OP_LE, TokenTipo.OP_GE, TokenTipo.OP_LT, TokenTipo.OP_GT
-    );
+    /** Após corpo/expressão, exigir ';' e emitir 1017 se faltar (sem parar a análise). */
+    private void exigirPontoVirgulaSePossivel() {
+        if (!aceita(TokenTipo.PONTO_VIRG)) {
+            emitir(1017, "esperava ';' ao final da atribuição", atual);
+        }
+    }
 
-    private static final EnumSet<TokenTipo> FIRST_COMANDO = EnumSet.of(
-        TokenTipo.IDENT, TokenTipo.KW_SE, TokenTipo.KW_ENQUANTO
-    );
+    // ---------- Entrada ----------
+    public AstNode parsePrograma() {
+        AstNode prog = new AstNode("Programa", tokenClone(atual));
+        // START
+        if (!aceita(TokenTipo.START)) {
+            emitir(1002, "esperava início de programa '$'", atual);
+        }
 
-    private static final EnumSet<TokenTipo> PONTO_VIRG_SET = EnumSet.of(TokenTipo.PONTO_VIRG);
+        // corpo
+        while (atual.getTipo() != TokenTipo.END
+            && atual.getTipo() != TokenTipo.EOF) {
 
-    private static final EnumSet<TokenTipo> SYNC_COMANDO = EnumSet.of(
-        TokenTipo.PONTO_VIRG, TokenTipo.IDENT, TokenTipo.KW_SE, TokenTipo.KW_ENQUANTO, TokenTipo.END
-    );
+            if (isInicioDecl()) {
+                AstNode d = parseDecl();
+                if (d != null) prog.addFilho(d);
+            } else if (isInicioComando()) {
+                AstNode c = parseComando();
+                if (c != null) prog.addFilho(c);
+            } else {
+                emitir(1003, "esperava fim de programa '$.'", atual);
+                syncAteFimComando();
+                if (aceita(TokenTipo.PONTO_VIRG)) {
+                    // ok
+                } else if (atual.getTipo() == TokenTipo.END || atual.getTipo() == TokenTipo.EOF) {
+                    break;
+                } else {
+                    atual = lx.proximo();
+                }
+            }
+        }
 
-    private static boolean isTipo(TokenTipo t) {
-        return t == TokenTipo.KW_INTEIRO || t == TokenTipo.KW_REAL || t == TokenTipo.KW_CARACTER;
+        // END
+        if (!aceita(TokenTipo.END)) {
+            emitir(1003, "esperava fim de programa '$.'", atual);
+        }
+
+        // EOF
+        if (!aceita(TokenTipo.EOF)) {
+            emitir(1003, "esperava fim de programa '$.'", atual);
+            while (atual.getTipo() != TokenTipo.EOF) atual = lx.proximo();
+            aceita(TokenTipo.EOF);
+        }
+
+        return prog;
+    }
+
+    private boolean isInicioDecl() {
+        return atual.getTipo() == TokenTipo.KW_INTEIRO
+            || atual.getTipo() == TokenTipo.KW_REAL
+            || atual.getTipo() == TokenTipo.KW_CARACTER;
+    }
+
+    private boolean isInicioComando() {
+        return atual.getTipo() == TokenTipo.IDENT
+            || atual.getTipo() == TokenTipo.KW_SE
+            || atual.getTipo() == TokenTipo.KW_ENQUANTO;
+    }
+
+    // ---------- Declarações ----------
+    private AstNode parseDecl() {
+        // Decl -> Tipo ListaIdent ';'
+        Token tTipo = atual;
+        AstNode decl = new AstNode("Decl", tTipo);
+        AstNode tipoNo = parseTipo();
+        if (tipoNo != null) decl.addFilho(tipoNo);
+
+        AstNode lista = parseListaIdent();
+        if (lista != null) decl.addFilho(lista);
+
+        if (!aceita(TokenTipo.PONTO_VIRG)) {
+            // faltou ';' na declaração
+            emitir(1006, "esperava ';' ao final da declaração", atual);
+            // *** PATCH: sincronização que NÃO consome o IDENT de próximo comando ***
+            syncDeclFimOuInicioComando();
+        }
+
+        return decl;
+    }
+
+    private AstNode parseTipo() {
+        Token t = atual;
+        if (aceita(TokenTipo.KW_INTEIRO) ||
+            aceita(TokenTipo.KW_REAL)    ||
+            aceita(TokenTipo.KW_CARACTER)) {
+            return new AstNode("Tipo", t);
+        }
+        return null;
+    }
+
+    private AstNode parseListaIdent() {
+        AstNode lista = new AstNode("ListaIdent", atual);
+        if (atual.getTipo() == TokenTipo.IDENT) {
+            lista.addFilho(parseIdent());
+            while (aceita(TokenTipo.VIRGULA)) {
+                if (atual.getTipo() == TokenTipo.IDENT) {
+                    lista.addFilho(parseIdent());
+                } else {
+                    emitir(1007, "esperava identificador após ','", atual);
+                    break;
+                }
+            }
+        } else {
+            emitir(1007, "esperava identificador", atual);
+        }
+        return lista;
+    }
+
+    private AstNode parseIdent() {
+        Token t = consome(TokenTipo.IDENT, 1007, "esperava identificador");
+        return new AstNode("Ident", t);
+    }
+
+    // ---------- Comandos ----------
+    private AstNode parseComando() {
+        return switch (atual.getTipo()) {
+            case IDENT -> parseAtrib();
+            case KW_SE -> parseSe();
+            case KW_ENQUANTO -> parseEnquanto();
+            default -> {
+                emitir(1001, "comando inválido", atual);
+                syncAteFimComando();
+                aceita(TokenTipo.PONTO_VIRG);
+                yield null;
+            }
+        };
+    }
+
+    /** CmdAtrib -> IDENT '=' expressao ';' */
+    private AstNode parseAtrib() {
+        Token identTok = atual;
+        AstNode cmd = new AstNode("CmdAtrib", identTok);
+
+        // LValue
+        AstNode lvalue = new AstNode("LValue", identTok);
+        lvalue.addFilho(parseIdent());
+        cmd.addFilho(lvalue);
+
+        // '='
+        if (!aceita(TokenTipo.OP_ATRIB)) {
+            emitir(1015, "esperava '=' na atribuição", atual);
+            emitir(1016, "fator inválido em expressão", atual);
+            // tentar seguir para próximo comando, sem consumir o potencial IDENT inicial
+            syncAteFimComando();
+            aceita(TokenTipo.PONTO_VIRG);
+            return cmd;
+        }
+
+        // expressão
+        AstNode expr = parseExpressaoOuFatorInvalido();
+        cmd.addFilho(expr);
+
+        // exigir ';' (com diagnóstico, sem parar)
+        exigirPontoVirgulaSePossivel();
+        // sincroniza para seguir analisando próximos comandos
+        syncAteFimComando();
+        aceita(TokenTipo.PONTO_VIRG);
+
+        return cmd;
+    }
+
+    /** CmdSe -> 'se' '(' cond ')' 'entao' comando */
+    private AstNode parseSe() {
+        Token tSe = atual;
+        aceita(TokenTipo.KW_SE);
+        AstNode cmdSe = new AstNode("CmdSe", tSe);
+
+        // '('
+        consome(TokenTipo.ABRE_PAR, 1011, "esperava '(' após 'se'");
+
+        // condição
+        AstNode cond = parseCondOuRelInvalido();
+        cmdSe.addFilho(cond);
+
+        // ')'
+        if (!aceita(TokenTipo.FECHA_PAR)) {
+            emitir(1013, "esperava ')' após condição", atual);
+            while (atual.getTipo() != TokenTipo.FECHA_PAR
+                && atual.getTipo() != TokenTipo.KW_ENTAO
+                && atual.getTipo() != TokenTipo.KW_SE
+                && atual.getTipo() != TokenTipo.KW_ENQUANTO
+                && atual.getTipo() != TokenTipo.END
+                && atual.getTipo() != TokenTipo.EOF) {
+                atual = lx.proximo();
+            }
+            aceita(TokenTipo.FECHA_PAR);
+        }
+
+        // 'entao'
+        if (!aceita(TokenTipo.KW_ENTAO)) {
+            emitir(1014, "esperava 'entao'", atual);
+        }
+
+        // Then (um comando)
+        AstNode thenBlk = new AstNode("Then", tSe);
+        if (isInicioComando()) {
+            AstNode c = parseComando();
+            if (c != null) thenBlk.addFilho(c);
+        } else {
+            emitir(1001, "comando inválido", atual);
+        }
+        cmdSe.addFilho(thenBlk);
+
+        return cmdSe;
+    }
+
+    /** CmdEnquanto -> 'enquanto' '(' cond ')' comando */
+    private AstNode parseEnquanto() {
+        Token t = atual;
+        aceita(TokenTipo.KW_ENQUANTO);
+        AstNode cmd = new AstNode("CmdEnquanto", t);
+
+        consome(TokenTipo.ABRE_PAR, 1011, "esperava '(' após 'enquanto'");
+
+        AstNode cond = parseCondOuRelInvalido();
+        cmd.addFilho(cond);
+
+        if (!aceita(TokenTipo.FECHA_PAR)) {
+            emitir(1013, "esperava ')' após condição", atual);
+            while (atual.getTipo() != TokenTipo.FECHA_PAR
+                && atual.getTipo() != TokenTipo.KW_SE
+                && atual.getTipo() != TokenTipo.KW_ENQUANTO
+                && atual.getTipo() != TokenTipo.END
+                && atual.getTipo() != TokenTipo.EOF) {
+                atual = lx.proximo();
+            }
+            aceita(TokenTipo.FECHA_PAR);
+        }
+
+        // corpo: um comando
+        AstNode body = new AstNode("Body", t);
+        if (isInicioComando()) {
+            AstNode c = parseComando();
+            if (c != null) body.addFilho(c);
+        } else {
+            emitir(1001, "comando inválido", atual);
+        }
+        cmd.addFilho(body);
+        return cmd;
+    }
+
+    // ---------- Expressões e condições (resumo) ----------
+    private AstNode parseExpressaoOuFatorInvalido() {
+        AstNode left = parseExprSoma();
+        if (left != null) return left;
+
+        AstNode inv = new AstNode("FatorInvalido", atual);
+        if (atual.getTipo() != TokenTipo.PONTO_VIRG
+         && atual.getTipo() != TokenTipo.END
+         && atual.getTipo() != TokenTipo.EOF) {
+            atual = lx.proximo(); // consome 1 para avançar
+        }
+        return inv;
+    }
+
+    private AstNode parseCondOuRelInvalido() {
+        Token start = atual;
+
+        AstNode left = parseOpndRel();
+        if (left == null) {
+            AstNode relInv = new AstNode("Rel", new Token(TokenTipo.INVALIDO, "<invalido>", start.getLinha(), start.getColuna()));
+            relInv.addFilho(new AstNode("FatorInvalido", atual));
+            return relInv;
+        }
+
+        // Operador relacional
+        Token relop = atual;
+        if (!isRelop(relop.getTipo())) {
+            emitir(1010, "esperava operador relacional", atual);
+            AstNode relInv = new AstNode("Rel", new Token(TokenTipo.INVALIDO, "<invalido>", relop.getLinha(), relop.getColuna()));
+            relInv.addFilho(left);
+            relInv.addFilho(new AstNode("FatorInvalido", atual));
+            return relInv;
+        }
+        aceita(relop.getTipo());
+
+        AstNode right = parseOpndRel();
+        if (right == null) {
+            AstNode relInv = new AstNode("Rel", new Token(TokenTipo.INVALIDO, "<invalido>", relop.getLinha(), relop.getColuna()));
+            relInv.addFilho(left);
+            relInv.addFilho(new AstNode("FatorInvalido", atual));
+            return relInv;
+        }
+
+        AstNode rel = new AstNode("Rel", relop);
+        rel.addFilho(left);
+        rel.addFilho(right);
+        return rel;
+    }
+
+    private boolean isRelop(TokenTipo tp) {
+        return tp == TokenTipo.OP_EQ
+            || tp == TokenTipo.OP_NE
+            || tp == TokenTipo.OP_LT
+            || tp == TokenTipo.OP_LE
+            || tp == TokenTipo.OP_GT
+            || tp == TokenTipo.OP_GE;
+    }
+
+    private AstNode parseOpndRel() {
+        if (atual.getTipo() == TokenTipo.IDENT) {
+            return parseIdent();
+        }
+        if (atual.getTipo() == TokenTipo.NUM_INT || atual.getTipo() == TokenTipo.NUM_REAL) {
+            Token t = atual; aceita(t.getTipo());
+            AstNode n = new AstNode("Numero", t);
+            return n;
+        }
+        if (aceita(TokenTipo.ABRE_PAR)) {
+            AstNode e = parseExpressaoOuFatorInvalido();
+            consome(TokenTipo.FECHA_PAR, 1012, "esperava ')' após expressão");
+            return e;
+        }
+        return null;
+    }
+
+    private AstNode parseExprSoma() {
+        AstNode left = parseExprMul();
+        if (left == null) return null;
+
+        while (atual.getTipo() == TokenTipo.OP_MAIS) {
+            Token t = atual; aceita(TokenTipo.OP_MAIS);
+            AstNode bin = new AstNode("OpMais", t);
+            bin.addFilho(left);
+            AstNode right = parseExprMul();
+            if (right == null) {
+                bin.addFilho(new AstNode("FatorInvalido", atual));
+                return bin;
+            }
+            bin.addFilho(right);
+            left = bin;
+        }
+        return left;
+    }
+
+    private AstNode parseExprMul() {
+        AstNode left = parseFator();
+        if (left == null) return null;
+
+        while (atual.getTipo() == TokenTipo.OP_MULT
+            || atual.getTipo() == TokenTipo.OP_DIV
+            || atual.getTipo() == TokenTipo.OP_RESTO) {
+
+            Token t = atual;
+            if (aceita(TokenTipo.OP_MULT)) {
+                AstNode bin = new AstNode("OpMult", t);
+                bin.addFilho(left);
+                AstNode r = parseFator();
+                if (r == null) { bin.addFilho(new AstNode("FatorInvalido", atual)); return bin; }
+                bin.addFilho(r);
+                left = bin;
+            } else if (aceita(TokenTipo.OP_DIV)) {
+                AstNode bin = new AstNode("OpDiv", t);
+                bin.addFilho(left);
+                AstNode r = parseFator();
+                if (r == null) { bin.addFilho(new AstNode("FatorInvalido", atual)); return bin; }
+                bin.addFilho(r);
+                left = bin;
+            } else {
+                aceita(TokenTipo.OP_RESTO);
+                AstNode bin = new AstNode("OpResto", t);
+                bin.addFilho(left);
+                AstNode r = parseFator();
+                if (r == null) { bin.addFilho(new AstNode("FatorInvalido", atual)); return bin; }
+                bin.addFilho(r);
+                left = bin;
+            }
+        }
+        return left;
+    }
+
+    private AstNode parseFator() {
+        if (atual.getTipo() == TokenTipo.IDENT) return parseIdent();
+        if (atual.getTipo() == TokenTipo.NUM_INT || atual.getTipo() == TokenTipo.NUM_REAL) {
+            Token t = atual; aceita(t.getTipo());
+            return new AstNode("Numero", t);
+        }
+        if (aceita(TokenTipo.ABRE_PAR)) {
+            AstNode e = parseExpressaoOuFatorInvalido();
+            consome(TokenTipo.FECHA_PAR, 1012, "esperava ')' após expressão");
+            return e;
+        }
+        return null;
+    }
+
+    // ---------- helper ----------
+    private static Token tokenClone(Token t) {
+        return t;
     }
 }
