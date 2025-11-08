@@ -130,35 +130,48 @@ public class Main {
         }
 
         // DIAGNÓSTICOS (léxico da coleta + léxico do parsing + sintático + semântico)
-        List<Diagnostico> all = new ArrayList<>();
-        all.addAll(diagsLexColeta);
-        all.addAll(diagsLex);
-        all.addAll(diagsSint);
-        all.addAll(diagsSem);
+    List<Diagnostico> all = new ArrayList<>();
+    all.addAll(diagsLexColeta);
+    all.addAll(diagsLex);
+    all.addAll(diagsSint);
+    all.addAll(diagsSem);
 
-        System.out.println(">>> DIAGNOSTICOS");
-        if (all.isEmpty()) {
-            System.out.println("  (nenhum)");
-        } else {
-            for (Diagnostico d : all) System.out.println("  " + d);
+    // remover duplicados (mesmo texto de diagnóstico)
+    List<Diagnostico> allUnique = new ArrayList<>();
+    java.util.Set<String> seen = new java.util.LinkedHashSet<>();
+    for (Diagnostico d : all) {
+        String key = d.toString(); // já contém tipo, código, linha, coluna e lexema
+        if (seen.add(key)) {
+            allUnique.add(d);
         }
+    }
 
-        // RESUMO + retorno (exit code será tratado no main)
-        int cLex = 0, cSin = 0, cSem = 0;
-        for (Diagnostico d : all) {
-            switch (d.getTipo()) {
-                case LEXICO -> cLex++;
-                case SINTATICO -> cSin++;
-                case SEMANTICO -> cSem++;
-            }
+    System.out.println(">>> DIAGNOSTICOS");
+    if (allUnique.isEmpty()) {
+        System.out.println("  (nenhum)");
+    } else {
+        for (Diagnostico d : allUnique) {
+            System.out.println("  " + d);
         }
-        int total = cLex + cSin + cSem;
+    }
 
-        System.out.println(">>> RESUMO");
-        System.out.printf("  LEXICO: %d  SINTATICO: %d  SEMANTICO: %d  TOTAL: %d\n",
-                cLex, cSin, cSem, total);
+    // RESUMO + retorno (exit code será tratado no main)
+    int cLex = 0, cSin = 0, cSem = 0;
+    for (Diagnostico d : allUnique) {
+        switch (d.getTipo()) {
+            case LEXICO -> cLex++;
+            case SINTATICO -> cSin++;
+            case SEMANTICO -> cSem++;
+        }
+    }
+    int total = cLex + cSin + cSem;
 
-        return total > 0;
+    System.out.println(">>> RESUMO");
+    System.out.printf("  LEXICO: %d  SINTATICO: %d  SEMANTICO: %d  TOTAL: %d\n",
+            cLex, cSin, cSem, total);
+
+    return total > 0;
+
     }
 
     // -------- utilidades leves (não criamos novas classes) --------

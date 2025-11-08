@@ -1,0 +1,7 @@
+$
+inteiro x, y;
+
+se (x>0){
+    y=x
+}
+$.

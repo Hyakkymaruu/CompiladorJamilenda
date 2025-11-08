@@ -17,6 +17,7 @@ import mlp.Erros.Diagnostico.Tipo;
  *  0101 - símbolo não reconhecido
  *  0102 - número real inválido (ex.: "5.", ".5")
  *  0103 - identificador malformado (ex.: contém '_' na MLP atual)
+ *  0104 - identificador excede tamanho máximo (10 caracteres)
  */
 public class AnalisadorLexico {
 
@@ -24,6 +25,7 @@ public class AnalisadorLexico {
     private static final int LEX_SIMBOLO_DESCONHECIDO = 101; // 0101 no catálogo
     private static final int LEX_REAL_INVALIDO        = 102; // 0102
     private static final int LEX_IDENT_MALFORMADO     = 103; // 0103
+    private static final int LEX_IDENT_TAM_EXCEDIDO   = 104; // 0104
 
     // ------------------- Estado -------------------
     private final String fonte;
@@ -94,7 +96,7 @@ public class AnalisadorLexico {
             }
         }
 
-        // Palavra-chave "RESTO" (operador)
+        // Palavra-chave / identificador / RESTO
         if (isLetra(c)) {
             return scanIdentOuPalavra();
         }
@@ -148,10 +150,30 @@ public class AnalisadorLexico {
             return new Token(TokenTipo.OP_RESTO, lex, lin, col);
         }
 
-        if (malformado) {
-            addDiag( Tipo.LEXICO, LEX_IDENT_MALFORMADO, "identificador malformado", lin, col, lex );
-            // devolvemos IDENT mesmo assim para o parser conseguir seguir
+        // Regra da MLP: identificador pode ter no máximo 10 caracteres
+        if (lex.length() > 10) {
+            addDiag(
+                Tipo.LEXICO,
+                LEX_IDENT_TAM_EXCEDIDO,
+                "identificador excede tamanho máximo (10)",
+                lin,
+                col,
+                lex
+            );
+            // ainda assim devolvemos IDENT para o parser continuar trabalhando
         }
+
+        if (malformado) {
+            addDiag(
+                Tipo.LEXICO,
+                LEX_IDENT_MALFORMADO,
+                "identificador malformado",
+                lin,
+                col,
+                lex
+            );
+        }
+
         return new Token(TokenTipo.IDENT, lex, lin, col);
     }
 

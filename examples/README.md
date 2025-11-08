@@ -8,5 +8,6 @@
 
 Execução:
 ```bash
+mvn -q -DskipTests package
 java -jar target/compilador-mlp-0.1.0.jar --run-examples
 java -jar target/compilador-mlp-0.1.0.jar --run-examples examples/negativos/sintatico
