@@ -13,10 +13,11 @@ import mlp.ast.AstNode;
 public class AnalisadorSemantico {
 
     // Códigos padronizados
-    private static final int SEM_VAR_NAO_DECL      = 2001;
-    private static final int SEM_VAR_REDECLARADA   = 2002;
-    private static final int SEM_TIPO_INCOMPATIVEL = 2003;
-    private static final int SEM_COND_NAO_BOLEANA  = 2004;
+    private static final int SEM_VAR_NAO_DECL          = 2001;
+    private static final int SEM_VAR_REDECLARADA       = 2002;
+    private static final int SEM_TIPO_INCOMPATIVEL     = 2003;
+    private static final int SEM_COND_NAO_BOLEANA      = 2004;
+    private static final int SEM_PROFUNDIDADE_EXCEDIDA = 2005; // NOVO
 
     private final TabelaSimbolos ts = new TabelaSimbolos();
     private final List<Diagnostico> diagnosticos = new ArrayList<>();
@@ -27,13 +28,14 @@ public class AnalisadorSemantico {
     /** Dispara a análise a partir do nó Programa. */
     public void analisar(AstNode programa) {
         if (programa == null) return;
+        // Percorre filhos do Programa (Decl e Comandos)
         for (AstNode filho : programa.getFilhos()) {
             switch (filho.getKind()) {
-                case "Decl"         -> analisarDecl(filho);
-                case "CmdAtrib"     -> analisarCmdAtrib(filho);
-                case "CmdSe"        -> analisarCmdSe(filho);
-                case "CmdEnquanto"  -> analisarCmdEnquanto(filho);
-                default -> { /* ignorar outros rótulos */ }
+                case "Decl"        -> analisarDecl(filho);
+                case "CmdAtrib"    -> analisarCmdAtrib(filho);
+                case "CmdSe"       -> analisarCmdSe(filho, 1);        // profundidade 1
+                case "CmdEnquanto" -> analisarCmdEnquanto(filho, 1);  // profundidade 1
+                default -> { /* ignorar outros rótulos (ex.: ComandoInvalido) */ }
             }
         }
     }
@@ -41,6 +43,12 @@ public class AnalisadorSemantico {
     // ---------------- Declarações ----------------
 
     private void analisarDecl(AstNode decl) {
+        // Estrutura esperada:
+        // Decl
+        //   Tipo [KW_* 'inteiro|real|caracter']
+        //   ListaIdent
+        //     Ident [IDENT 'x']
+        //     Ident [IDENT 'y'] ...
         if (decl.getFilhos().isEmpty()) return;
 
         // 1) Tipo
@@ -53,14 +61,13 @@ public class AnalisadorSemantico {
             for (AstNode idNo : lista.getFilhos()) {
                 if (!"Ident".equals(idNo.getKind())) continue;
                 Token tk = idNo.getToken();
-                String nome = tk != null ? tk.getLexema() : "<desconhecido>";
-                if (!ts.declarar(nome, tipo, tk != null ? tk.getLinha() : 0, tk != null ? tk.getColuna() : 0)) {
+                String nome = tk.getLexema();
+
+                if (!ts.declarar(nome, tipo, tk.getLinha(), tk.getColuna())) {
                     diagnosticos.add(new Diagnostico(
                         Tipo.SEMANTICO, SEM_VAR_REDECLARADA,
                         "variável já declarada: " + nome,
-                        tk != null ? tk.getLinha() : 0,
-                        tk != null ? tk.getColuna() : 0,
-                        nome
+                        tk.getLinha(), tk.getColuna(), nome
                     ));
                 }
             }
@@ -80,27 +87,19 @@ public class AnalisadorSemantico {
     // ---------------- Comandos ----------------
 
     private void analisarCmdAtrib(AstNode n) {
-        // PROTEÇÃO: se a recuperação de erro gerou um nó incompleto, não acessar índices inexistentes
-        if (n == null || n.getFilhos().size() < 1) return;
-
-        // Destino (LValue)
+        // Destino
         AstNode lvalue = n.getFilhos().get(0);
-        Token idTk = null;
-        if (lvalue != null) {
-            if (!lvalue.getFilhos().isEmpty() && lvalue.getFilhos().get(0) != null) {
-                idTk = lvalue.getFilhos().get(0).getToken(); // estrutura usual: LValue -> Ident(token=IDENT)
-            } else {
-                idTk = lvalue.getToken(); // fallback (se parser tiver colocado token direto no LValue)
-            }
+        // LValue pode ter o token diretamente ou ter um filho "Ident"
+        Token idTk;
+        if (lvalue.getFilhos().isEmpty()) {
+            idTk = lvalue.getToken(); // parser coloca o IDENT aqui
+        } else {
+            idTk = lvalue.getFilhos().get(0).getToken(); // fallback se houver filho
         }
         String nome = (idTk == null ? "<desconhecido>" : idTk.getLexema());
         TipoSimples tDest = tipoDeIdent(idTk);
 
-        // Expressão — pode não existir em caso de erro sintático; proteja
-        if (n.getFilhos().size() < 2) {
-            // Nada a verificar; já houve erro sintático na atribuição. Evita crash.
-            return;
-        }
+        // Expressão
         AstNode expr = n.getFilhos().get(1);
         TipoSimples tExpr = tipoExpr(expr);
 
@@ -116,7 +115,24 @@ public class AnalisadorSemantico {
         }
     }
 
-    private void analisarCmdSe(AstNode n) {
+    private void analisarCmdSe(AstNode n, int profundidade) {
+        // Checa profundidade máxima (10) apenas para comandos de controle
+        if (profundidade > 10) {
+            Token t = n.getToken();
+            diagnosticos.add(new Diagnostico(
+                Tipo.SEMANTICO, SEM_PROFUNDIDADE_EXCEDIDA,
+                "profundidade máxima de comandos (10) excedida",
+                (t != null ? t.getLinha() : 0),
+                (t != null ? t.getColuna() : 0),
+                null
+            ));
+        }
+
+        // Estrutura vinda do parser:
+        // CmdSe
+        //   (condição)
+        //   Then -> (comandos)
+        //   [Else -> (comandos)]
         if (n.getFilhos().isEmpty()) return;
 
         AstNode cond = n.getFilhos().get(0);
@@ -138,15 +154,30 @@ public class AnalisadorSemantico {
             for (AstNode cmd : bloco.getFilhos()) {
                 switch (cmd.getKind()) {
                     case "CmdAtrib"     -> analisarCmdAtrib(cmd);
-                    case "CmdSe"        -> analisarCmdSe(cmd);
-                    case "CmdEnquanto"  -> analisarCmdEnquanto(cmd);
+                    case "CmdSe"        -> analisarCmdSe(cmd, profundidade + 1);
+                    case "CmdEnquanto"  -> analisarCmdEnquanto(cmd, profundidade + 1);
                     default -> {}
                 }
             }
         }
     }
 
-    private void analisarCmdEnquanto(AstNode n) {
+    private void analisarCmdEnquanto(AstNode n, int profundidade) {
+        // Checa profundidade máxima (10) apenas para comandos de controle
+        if (profundidade > 10) {
+            Token t = n.getToken();
+            diagnosticos.add(new Diagnostico(
+                Tipo.SEMANTICO, SEM_PROFUNDIDADE_EXCEDIDA,
+                "profundidade máxima de comandos (10) excedida",
+                (t != null ? t.getLinha() : 0),
+                (t != null ? t.getColuna() : 0),
+                null
+            ));
+        }
+
+        // CmdEnquanto
+        //   (condição)
+        //   Body -> (comandos)
         if (n.getFilhos().isEmpty()) return;
 
         AstNode cond = n.getFilhos().get(0);
@@ -162,13 +193,14 @@ public class AnalisadorSemantico {
             ));
         }
 
+        // corpo
         if (n.getFilhos().size() > 1) {
             AstNode body = n.getFilhos().get(1);
             for (AstNode cmd : body.getFilhos()) {
                 switch (cmd.getKind()) {
                     case "CmdAtrib"     -> analisarCmdAtrib(cmd);
-                    case "CmdSe"        -> analisarCmdSe(cmd);
-                    case "CmdEnquanto"  -> analisarCmdEnquanto(cmd);
+                    case "CmdSe"        -> analisarCmdSe(cmd, profundidade + 1);
+                    case "CmdEnquanto"  -> analisarCmdEnquanto(cmd, profundidade + 1);
                     default -> {}
                 }
             }
@@ -196,19 +228,18 @@ public class AnalisadorSemantico {
                 };
             }
             case "OpMais" -> {
-                // proteção leve
-                TipoSimples a = e.getFilhos().size() > 0 ? tipoExpr(e.getFilhos().get(0)) : TipoSimples.ERRO;
-                TipoSimples b = e.getFilhos().size() > 1 ? tipoExpr(e.getFilhos().get(1)) : TipoSimples.ERRO;
+                TipoSimples a = tipoExpr(e.getFilhos().get(0));
+                TipoSimples b = tipoExpr(e.getFilhos().get(1));
                 return promoverSoma(a, b, e);
             }
             case "OpMult", "OpDiv" -> {
-                TipoSimples a = e.getFilhos().size() > 0 ? tipoExpr(e.getFilhos().get(0)) : TipoSimples.ERRO;
-                TipoSimples b = e.getFilhos().size() > 1 ? tipoExpr(e.getFilhos().get(1)) : TipoSimples.ERRO;
+                TipoSimples a = tipoExpr(e.getFilhos().get(0));
+                TipoSimples b = tipoExpr(e.getFilhos().get(1));
                 return promoverMulDiv(a, b, e);
             }
             case "OpResto" -> {
-                TipoSimples a = e.getFilhos().size() > 0 ? tipoExpr(e.getFilhos().get(0)) : TipoSimples.ERRO;
-                TipoSimples b = e.getFilhos().size() > 1 ? tipoExpr(e.getFilhos().get(1)) : TipoSimples.ERRO;
+                TipoSimples a = tipoExpr(e.getFilhos().get(0));
+                TipoSimples b = tipoExpr(e.getFilhos().get(1));
                 if (a != TipoSimples.INT || b != TipoSimples.INT) {
                     Token t = e.getToken();
                     diagnosticos.add(new Diagnostico(
@@ -247,28 +278,31 @@ public class AnalisadorSemantico {
 
         switch (k) {
             case "Nao" -> {
-                TipoSimples t = c.getFilhos().isEmpty() ? TipoSimples.ERRO : tipoCond(c.getFilhos().get(0));
+                TipoSimples t = tipoCond(c.getFilhos().get(0));
                 if (t != TipoSimples.BOOL) return TipoSimples.ERRO;
                 return TipoSimples.BOOL;
             }
             case "OpE", "OpOU" -> {
-                TipoSimples a = c.getFilhos().size() > 0 ? tipoCond(c.getFilhos().get(0)) : TipoSimples.ERRO;
-                TipoSimples b = c.getFilhos().size() > 1 ? tipoCond(c.getFilhos().get(1)) : TipoSimples.ERRO;
+                TipoSimples a = tipoCond(c.getFilhos().get(0));
+                TipoSimples b = tipoCond(c.getFilhos().get(1));
                 if (a != TipoSimples.BOOL || b != TipoSimples.BOOL) return TipoSimples.ERRO;
                 return TipoSimples.BOOL;
             }
             case "Rel" -> {
-                TipoSimples a = c.getFilhos().size() > 0 ? tipoOpndRel(c.getFilhos().get(0)) : TipoSimples.ERRO;
-                TipoSimples b = c.getFilhos().size() > 1 ? tipoOpndRel(c.getFilhos().get(1)) : TipoSimples.ERRO;
+                // Rel -> expr opRel expr
+                TipoSimples a = tipoOpndRel(c.getFilhos().get(0));
+                TipoSimples b = tipoOpndRel(c.getFilhos().get(1));
                 if (!ehNumerico(a) || !ehNumerico(b)) return TipoSimples.ERRO;
                 return TipoSimples.BOOL;
             }
             default -> {
+                // Se veio expressão numérica pura como condição, é erro
                 if ("Ident".equals(k) || "Numero".equals(k)
                     || "OpMais".equals(k) || "OpMult".equals(k)
                     || "OpDiv".equals(k) || "OpResto".equals(k)) {
                     return TipoSimples.ERRO;
                 }
+                // fallback: tenta filho
                 if (!c.getFilhos().isEmpty()) {
                     return tipoCond(c.getFilhos().get(0));
                 }
@@ -278,6 +312,7 @@ public class AnalisadorSemantico {
     }
 
     private TipoSimples tipoOpndRel(AstNode opnd) {
+        // opndRel = IDENT | NUM_INT | NUM_REAL | '(' expressao ')'
         return tipoExpr(opnd);
     }
 
@@ -335,6 +370,7 @@ public class AnalisadorSemantico {
     private boolean compatAtrib(TipoSimples destino, TipoSimples expr) {
         if (destino == TipoSimples.ERRO || expr == TipoSimples.ERRO) return true; // evita cascata
         if (destino == expr) return true;
-        return (destino == TipoSimples.REAL && expr == TipoSimples.INT); // promoção INT -> REAL
+        // promoção permitida: INT -> REAL
+        return (destino == TipoSimples.REAL && expr == TipoSimples.INT);
     }
 }

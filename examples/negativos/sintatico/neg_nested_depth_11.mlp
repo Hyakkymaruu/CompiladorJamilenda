@@ -1,0 +1,16 @@
+$
+inteiro a;
+a = 0;
+se (a < 1) entao
+    se (a < 2) entao
+        se (a < 3) entao
+            se (a < 4) entao
+                se (a < 5) entao
+                    se (a < 6) entao
+                        se (a < 7) entao
+                            se (a < 8) entao
+                                se (a < 9) entao
+                                    se (a < 10) entao
+                                        se (a < 11) entao
+                                            a = 1;
+$.
