@@ -3,85 +3,87 @@ package mlp.tac;
 import java.util.ArrayList;
 import java.util.List;
 
-import mlp.Lexico.Token;
 import mlp.ast.AstNode;
+import mlp.Lexico.Token;
 
 /**
- * Gerador de código intermediário (TAC) para a MLP.
+ * Gerador de código intermediário (TAC) bem simples.
  *
- * Nesta primeira etapa, gera:
- *  - Atribuições simples: x = 1;  x = y; x = y + 1; etc.
- *  - Expressões aritméticas: +, *, /, RESTO
+ * Suporta, por enquanto:
+ *  - Atribuições:
+ *      IDENT = Numero
+ *      IDENT = Ident
+ *      IDENT = expr_soma/mul
  *
- * Convenções:
- *  - Variáveis da linguagem: usamos o próprio nome (ex: "a", "b").
- *  - Temporários: t0, t1, t2, ...
- *
- * Mnemônicos utilizados (coerentes com a tabela do professor):
- *  - LOADI R, const
- *  - LOAD  R, var
- *  - STORE var, R
- *  - ADD   R, R1, R2
- *  - SUB   R, R1, R2   (reservado, ainda não usado)
- *  - MUL   R, R1, R2
- *  - DIV   R, R1, R2
- *  - RESTO R, R1, R2
+ *  - Expressões:
+ *      Numero      -> LOADI
+ *      Ident       -> LOAD
+ *      OpMais      -> ADD
+ *      OpMult      -> MUL
  */
 public class GeradorTAC {
 
-    private final List<TacInstr> codigo = new ArrayList<>();
+    private final List<TacInstr> instrs = new ArrayList<>();
     private int tempCount = 0;
 
-    /** Gera TAC para um programa inteiro (nó "Programa"). */
+    /** Ponto de entrada: gera TAC para um Programa inteiro. */
     public List<TacInstr> gerar(AstNode programa) {
-        codigo.clear();
+        instrs.clear();
         tempCount = 0;
 
-        if (programa == null) {
-            return new ArrayList<>();
-        }
+        if (programa == null) return instrs;
 
-        // Percorre filhos do Programa: Decl, CmdAtrib, CmdSe, CmdEnquanto...
         for (AstNode filho : programa.getFilhos()) {
             switch (filho.getKind()) {
-                case "CmdAtrib"    -> gerarCmdAtrib(filho);
-                // "CmdSe" e "CmdEnquanto" virão em etapas posteriores
+                case "CmdAtrib" -> genCmdAtrib(filho);
+                // futuros:
+                // case "CmdSe" -> genCmdSe(filho);
+                // case "CmdEnquanto" -> genCmdEnquanto(filho);
                 default -> {
-                    // Declarações em si não geram código (apenas tabela de símbolos)
+                    // Decl, etc: ignorados pelo TAC
                 }
             }
         }
 
-        return new ArrayList<>(codigo);
+        return instrs;
     }
 
-    // ------------------- Comandos -------------------
+    // ---------- Comandos ----------
 
-    /** Gera TAC para um comando de atribuição: CmdAtrib. */
-    private void gerarCmdAtrib(AstNode cmd) {
+    private void genCmdAtrib(AstNode cmd) {
+        // CmdAtrib
+        //   LValue
+        //     Ident [IDENT 'a']
+        //   <expr>
         if (cmd.getFilhos().size() < 2) return;
 
         AstNode lvalue = cmd.getFilhos().get(0);
         AstNode expr   = cmd.getFilhos().get(1);
 
-        String destino = extrairNomeIdent(lvalue);
-        String origem  = gerarExpr(expr);
+        // pegar nome do destino
+        String dest = "<tmp>";
+        if (!lvalue.getFilhos().isEmpty()) {
+            Token idTk = lvalue.getFilhos().get(0).getToken();
+            if (idTk != null) dest = idTk.getLexema();
+        } else if (lvalue.getToken() != null) {
+            dest = lvalue.getToken().getLexema();
+        }
 
-        // Se origem for null, não gera nada.
-        if (origem == null || destino == null) return;
+        // gera código para a expressão do lado direito
+        String srcReg = genExpr(expr);
 
-        // Convenção:
-        //   STORE var, Rorigem
-        codigo.add(new TacInstr("STORE", destino, origem, null));
+        // garante STORE SEMPRE que tivermos um registrador fonte
+        if (srcReg != null) {
+            instrs.add(TacInstr.store(dest, srcReg));
+        }
     }
 
-    // ------------------- Expressões -------------------
+    // ---------- Expressões ----------
 
     /**
-     * Gera TAC para uma expressão aritmética e retorna o nome do "registrador"
-     * (temporário) onde o resultado fica.
+     * Gera TAC para uma expressão e retorna o registrador (temp) onde está o resultado.
      */
-    private String gerarExpr(AstNode e) {
+    private String genExpr(AstNode e) {
         if (e == null) return null;
 
         String kind = e.getKind();
@@ -89,117 +91,79 @@ public class GeradorTAC {
         switch (kind) {
             case "Numero" -> {
                 Token tk = e.getToken();
-                if (tk == null) return null;
-                String lex = tk.getLexema();
-                String t = novoTemp();
-                // LOADI t, constante
-                codigo.add(new TacInstr("LOADI", t, lex, null));
-                return t;
+                String temp = novoTemp();
+                String lex = (tk != null ? tk.getLexema() : "0");
+                instrs.add(TacInstr.loadi(temp, lex));
+                return temp;
             }
 
             case "Ident" -> {
                 Token tk = e.getToken();
-                if (tk == null) return null;
-                String nome = tk.getLexema();
-                String t = novoTemp();
-                // LOAD t, var
-                codigo.add(new TacInstr("LOAD", t, nome, null));
-                return t;
+                String temp = novoTemp();
+                String nome = (tk != null ? tk.getLexema() : "<anon>");
+                instrs.add(TacInstr.load(temp, nome));
+                return temp;
             }
 
             case "OpMais" -> {
-                // a + b
-                if (e.getFilhos().size() < 2) return null;
-                String r1 = gerarExpr(e.getFilhos().get(0));
-                String r2 = gerarExpr(e.getFilhos().get(1));
-                if (r1 == null || r2 == null) return null;
-                String t = novoTemp();
-                codigo.add(new TacInstr("ADD", t, r1, r2));
-                return t;
+                // filho0 + filho1
+                AstNode left = safeChild(e, 0);
+                AstNode right = safeChild(e, 1);
+                String r1 = genExpr(left);
+                String r2 = genExpr(right);
+                String r3 = novoTemp();
+                instrs.add(TacInstr.add(r3, r1, r2));
+                return r3;
             }
 
             case "OpMult" -> {
-                if (e.getFilhos().size() < 2) return null;
-                String r1 = gerarExpr(e.getFilhos().get(0));
-                String r2 = gerarExpr(e.getFilhos().get(1));
-                if (r1 == null || r2 == null) return null;
-                String t = novoTemp();
-                codigo.add(new TacInstr("MUL", t, r1, r2));
-                return t;
+                // filho0 * filho1
+                AstNode left = safeChild(e, 0);
+                AstNode right = safeChild(e, 1);
+                String r1 = genExpr(left);
+                String r2 = genExpr(right);
+                String r3 = novoTemp();
+                instrs.add(TacInstr.mul(r3, r1, r2));
+                return r3;
             }
 
             case "OpDiv" -> {
-                if (e.getFilhos().size() < 2) return null;
-                String r1 = gerarExpr(e.getFilhos().get(0));
-                String r2 = gerarExpr(e.getFilhos().get(1));
-                if (r1 == null || r2 == null) return null;
-                String t = novoTemp();
-                codigo.add(new TacInstr("DIV", t, r1, r2));
-                return t;
+                AstNode left = safeChild(e, 0);
+                AstNode right = safeChild(e, 1);
+                String r1 = genExpr(left);
+                String r2 = genExpr(right);
+                String r3 = novoTemp();
+                instrs.add(TacInstr.div(r3, r1, r2));
+                return r3;
             }
 
             case "OpResto" -> {
-                if (e.getFilhos().size() < 2) return null;
-                String r1 = gerarExpr(e.getFilhos().get(0));
-                String r2 = gerarExpr(e.getFilhos().get(1));
-                if (r1 == null || r2 == null) return null;
-                String t = novoTemp();
-                // Usamos o mnemônico RESTO, seguindo o operador da linguagem
-                codigo.add(new TacInstr("RESTO", t, r1, r2));
-                return t;
+                AstNode left = safeChild(e, 0);
+                AstNode right = safeChild(e, 1);
+                String r1 = genExpr(left);
+                String r2 = genExpr(right);
+                String r3 = novoTemp();
+                instrs.add(TacInstr.resto(r3, r1, r2));
+                return r3;
             }
 
             default -> {
-                // Por enquanto, outras construções (lógicas, relacionais, etc.)
-                // não são tratadas aqui; serão implementadas nas próximas etapas.
-                // Para não travar o gerador, tentamos olhar o primeiro filho.
+                // Qualquer coisa que não conhecemos -> tenta primeiro filho
                 if (!e.getFilhos().isEmpty()) {
-                    return gerarExpr(e.getFilhos().get(0));
+                    return genExpr(e.getFilhos().get(0));
                 }
                 return null;
             }
         }
     }
 
-    // ------------------- Helpers -------------------
-
-    /** Gera um novo nome de temporário: t0, t1, t2, ... */
-    private String novoTemp() {
-        return "t" + (tempCount++);
+    private AstNode safeChild(AstNode n, int idx) {
+        if (n == null) return null;
+        if (idx < 0 || idx >= n.getFilhos().size()) return null;
+        return n.getFilhos().get(idx);
     }
 
-    /**
-     * Extrai o nome do identificador a partir de um nó LValue ou Ident.
-     * Seu parser cria CmdAtrib assim:
-     *   CmdAtrib
-     *     LValue
-     *       Ident
-     *     (expressão)
-     */
-    private String extrairNomeIdent(AstNode no) {
-        if (no == null) return null;
-
-        // Caso já seja um Ident
-        if ("Ident".equals(no.getKind())) {
-            Token tk = no.getToken();
-            return (tk != null) ? tk.getLexema() : null;
-        }
-
-        // Caso seja LValue com filho Ident
-        if ("LValue".equals(no.getKind()) && !no.getFilhos().isEmpty()) {
-            AstNode idNo = no.getFilhos().get(0);
-            if (idNo != null && "Ident".equals(idNo.getKind())) {
-                Token tk = idNo.getToken();
-                return (tk != null) ? tk.getLexema() : null;
-            }
-        }
-
-        // Fallback: procura recursivamente
-        for (AstNode f : no.getFilhos()) {
-            String nome = extrairNomeIdent(f);
-            if (nome != null) return nome;
-        }
-
-        return null;
+    private String novoTemp() {
+        return "t" + (tempCount++);
     }
 }

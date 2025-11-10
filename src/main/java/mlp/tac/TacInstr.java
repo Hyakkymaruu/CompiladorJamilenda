@@ -1,55 +1,59 @@
 package mlp.tac;
 
-/**
- * Representa uma instrução de Código Intermediário (TAC)
- * no formato de até 3 endereços, por exemplo:
- *
- *   LOADI t0, 5
- *   LOAD  t1, a
- *   ADD   t2, t0, t1
- *   STORE a, t2
- *
- * Os campos r, a, b são genéricos:
- *  - Para operações aritméticas:   OP   r, a, b
- *  - Para LOAD / LOADI / STORE:    OP   r, a
- *  - Para jumps / labels (futuro): OP   r
- */
 public class TacInstr {
+    public final String op;
+    public final String a;
+    public final String b;
+    public final String c;
 
-    private final String op;  // ex: "LOADI", "ADD", "STORE"
-    private final String r;   // resultado / destino
-    private final String a;   // operando 1
-    private final String b;   // operando 2
-
-    public TacInstr(String op, String r, String a, String b) {
+    public TacInstr(String op, String a, String b, String c) {
         this.op = op;
-        this.r  = r;
-        this.a  = a;
-        this.b  = b;
+        this.a = a;
+        this.b = b;
+        this.c = c;
     }
 
-    public String getOp() { return op; }
-    public String getR()  { return r; }
-    public String getA()  { return a; }
-    public String getB()  { return b; }
+    // Fábricas estáticas para facilitar leitura
+
+    public static TacInstr loadi(String r, String value) {
+        return new TacInstr("LOADI", r, value, null);
+    }
+
+    public static TacInstr load(String r, String var) {
+        return new TacInstr("LOAD", r, var, null);
+    }
+
+    public static TacInstr store(String var, String r) {
+        return new TacInstr("STORE", var, r, null);
+    }
+
+    public static TacInstr add(String r, String r1, String r2) {
+        return new TacInstr("ADD", r, r1, r2);
+    }
+
+    public static TacInstr mul(String r, String r1, String r2) {
+        return new TacInstr("MUL", r, r1, r2);
+    }
+
+    public static TacInstr div(String r, String r1, String r2) {
+        return new TacInstr("DIV", r, r1, r2);
+    }
+
+    public static TacInstr resto(String r, String r1, String r2) {
+        return new TacInstr("RESTO", r, r1, r2);
+    }
 
     @Override
     public String toString() {
-        StringBuilder sb = new StringBuilder(op);
-        boolean first = true;
-
-        if (r != null) {
-            sb.append(' ').append(r);
-            first = false;
-        }
-        if (a != null) {
-            sb.append(first ? ' ' : ',').append(' ').append(a);
-            first = false;
+        // Formato bonitinho:
+        //  - 1 operando:   OP A, B    (LOAD, LOADI, STORE)
+        //  - 2 operandos:  OP A, B, C (ADD, MUL, etc.)
+        if (c != null) {
+            return op + " " + a + ", " + b + ", " + c;
         }
         if (b != null) {
-            sb.append(first ? ' ' : ',').append(' ').append(b);
+            return op + " " + a + ", " + b;
         }
-
-        return sb.toString();
+        return op + " " + a;
     }
 }
