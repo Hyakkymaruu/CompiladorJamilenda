@@ -12,6 +12,9 @@ import mlp.Erros.Diagnostico;
 import mlp.Sintatico.AnalisadorSintatico;
 import mlp.Semantico.AnalisadorSemantico;
 import mlp.ast.AstNode;
+import mlp.tac.GeradorTAC;
+import mlp.tac.TacInstr;
+
 
 public class Main {
 
@@ -169,6 +172,24 @@ public class Main {
     System.out.println(">>> RESUMO");
     System.out.printf("  LEXICO: %d  SINTATICO: %d  SEMANTICO: %d  TOTAL: %d\n",
             cLex, cSin, cSem, total);
+
+
+        // --- GERAÇÃO DE CÓDIGO INTERMEDIÁRIO (TAC) ---
+    // Somente se não houver nenhum erro (léxico, sintático ou semântico)
+    if (total == 0) {
+        GeradorTAC gerador = new GeradorTAC();
+        List<TacInstr> tac = gerador.gerar(programa); // 'programa' é o nó raiz da AST
+
+        if (!tac.isEmpty()) {
+            System.out.println(">>> CODIGO INTERMEDIARIO (TAC)");
+            for (TacInstr instr : tac) {
+                System.out.println("  " + instr);
+            }
+        } else {
+            System.out.println(">>> CODIGO INTERMEDIARIO (TAC)");
+            System.out.println("  (nenhuma instrucao gerada nesta etapa)");
+        }
+    }
 
     return total > 0;
 

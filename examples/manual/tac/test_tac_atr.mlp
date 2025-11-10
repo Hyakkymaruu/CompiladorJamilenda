@@ -1,0 +1,8 @@
+$
+inteiro a, b;
+real r;
+
+a = 1;
+b = a + 2;
+r = 3.5 * b;
+$.
