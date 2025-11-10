@@ -226,6 +226,7 @@ public class AnalisadorSintatico {
     }
 
     /** CmdAtrib -> IDENT '=' expressao ';' */
+    /** CmdAtrib -> IDENT '=' expressao ';' */
     private AstNode parseAtrib() {
         Token identTok = atual;
         AstNode cmd = new AstNode("CmdAtrib", identTok);
@@ -237,11 +238,15 @@ public class AnalisadorSintatico {
 
         // '='
         if (!aceita(TokenTipo.OP_ATRIB)) {
+            // Erro: faltou '='
             emitir(1015, "esperava '=' na atribuição", atual);
+            // Opcionalmente marcamos um fator inválido em expressão
             emitir(1016, "fator inválido em expressão", atual);
-            // tentar seguir para próximo comando, sem consumir o potencial IDENT inicial
+
+            // Recuperação: consumir até o fim do comando
             syncAteFimComando();
-            aceita(TokenTipo.PONTO_VIRG);
+            aceita(TokenTipo.PONTO_VIRG); // consome ';' se achar
+
             return cmd;
         }
 
@@ -249,13 +254,15 @@ public class AnalisadorSintatico {
         AstNode expr = parseExpressaoOuFatorInvalido();
         cmd.addFilho(expr);
 
-        // exigir ';' (com diagnóstico, sem parar)
+        // Exigir ';' (com diagnóstico, sem parar a análise)
         exigirPontoVirgulaSePossivel();
-        // sincroniza para seguir analisando próximos comandos
-        syncAteFimComando();
-        aceita(TokenTipo.PONTO_VIRG);
+        // ⚠️ IMPORTANTE: NÃO sincronizar aqui no caso de sucesso.
+        // Deixar o laço do parsePrograma() continuar a partir do próximo token
+        // (normalmente o início do próximo comando).
 
         return cmd;
+
+
     }
 
     /** CmdSe -> 'se' '(' cond ')' 'entao' comando */
