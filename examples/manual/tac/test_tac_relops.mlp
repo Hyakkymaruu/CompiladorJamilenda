@@ -1,0 +1,15 @@
+$
+inteiro a, b;
+inteiro r1, r2, r3, r4, r5, r6;
+
+a = 3;
+b = 5;
+
+se (a < b) entao r1 = 1;
+se (a > b) entao r2 = 1;
+se (a == b) entao r3 = 1;
+se (a != b) entao r4 = 1;
+se (a <= b) entao r5 = 1;
+se (a >= b) entao r6 = 1;
+
+$.

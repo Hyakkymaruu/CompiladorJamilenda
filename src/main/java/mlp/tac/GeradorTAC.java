@@ -7,238 +7,224 @@ import mlp.ast.AstNode;
 import mlp.Lexico.Token;
 import mlp.Lexico.TokenTipo;
 
-/**
- * Gera código intermediário (TAC) a partir da AST.
- * - Atualmente cobre:
- *   - Atribuições simples e com expressões (+, *, /, RESTO)
- *   - Comando 'se' (sem 'senao' por enquanto)
- *   - Comando 'enquanto'
- */
 public class GeradorTAC {
 
-    private final List<TacInstr> codigo = new ArrayList<>();
-    private int proxTemp = 0;
-    private int proxRotulo = 0;
+    private final List<TacInstr> code = new ArrayList<>();
+    private int tempCount = 0;
+    private int labelCount = 0;
+
+    private String newTemp()  { return "t" + (tempCount++); }
+    private String newLabel() { return "L" + (labelCount++); }
 
     public List<TacInstr> gerar(AstNode programa) {
-        codigo.clear();
-        proxTemp = 0;
-        proxRotulo = 0;
+        code.clear();
+        tempCount = 0;
+        labelCount = 0;
 
-        if (programa == null) return codigo;
+        if (programa == null) return code;
 
         for (AstNode filho : programa.getFilhos()) {
-            gerarComandoNoTopo(filho);
+            gerarComandoTopLevel(filho);
         }
-
-        return codigo;
+        return code;
     }
 
-    // ---------- geração de comandos de topo ----------
-
-    private void gerarComandoNoTopo(AstNode n) {
-        if (n == null) return;
+    private void gerarComandoTopLevel(AstNode n) {
         switch (n.getKind()) {
-            case "CmdAtrib"    -> gerarCmdAtrib(n);
-            case "CmdSe"       -> gerarCmdSe(n);
-            case "CmdEnquanto" -> gerarCmdEnquanto(n);
-            // "Decl" e outros nós são ignorados no TAC
-            default -> { /* ignora */ }
+            case "CmdAtrib"    -> genCmdAtrib(n);
+            case "CmdSe"       -> genCmdSe(n);
+            case "CmdEnquanto" -> genCmdEnquanto(n);
+            // Decl etc: não geram código
+            default -> {}
         }
     }
 
-    private void gerarComando(AstNode n) {
-        if (n == null) return;
-        switch (n.getKind()) {
-            case "CmdAtrib"    -> gerarCmdAtrib(n);
-            case "CmdSe"       -> gerarCmdSe(n);
-            case "CmdEnquanto" -> gerarCmdEnquanto(n);
-            default -> { /* ignora outros nós */ }
-        }
-    }
+    // ---------------- Comandos ----------------
 
-    // ---------- auxiliares de nomes ----------
-
-    private String novoTemp() {
-        return "t" + (proxTemp++);
-    }
-
-    private String novoRotulo() {
-        return "L" + (proxRotulo++);
-    }
-
-    // ---------- comandos ----------
-
-    /** CmdAtrib -> LValue expr */
-    private void gerarCmdAtrib(AstNode cmd) {
+    private void genCmdAtrib(AstNode cmd) {
         if (cmd.getFilhos().size() < 2) return;
 
         AstNode lvalue = cmd.getFilhos().get(0);
-        AstNode expr   = cmd.getFilhos().get(1);
+        if (lvalue.getFilhos().isEmpty()) return;
+        AstNode idNode = lvalue.getFilhos().get(0);
+        Token idTk = idNode.getToken();
+        if (idTk == null) return;
 
-        // LValue -> Ident
-        String nomeVar;
-        if (lvalue.getFilhos().isEmpty()) {
-            Token tk = lvalue.getToken();
-            nomeVar = (tk != null ? tk.getLexema() : "<tmp>");
-        } else {
-            Token tk = lvalue.getFilhos().get(0).getToken();
-            nomeVar = (tk != null ? tk.getLexema() : "<tmp>");
-        }
+        String varName = idTk.getLexema();
 
-        String resultado = gerarExpr(expr);
-        codigo.add(TacInstr.store(nomeVar, resultado));
+        AstNode expr = cmd.getFilhos().get(1);
+        String src = genExpr(expr);
+        if (src == null) return;
+
+        code.add(TacInstr.store(varName, src));
     }
 
-    /** CmdSe -> 'se' cond 'entao' comando  (AST: CmdSe, filho[0]=cond, filho[1]=Then) */
-    private void gerarCmdSe(AstNode cmdSe) {
+    /** CmdSe com ou sem 'senao' */
+    private void genCmdSe(AstNode cmdSe) {
         if (cmdSe.getFilhos().isEmpty()) return;
 
-        AstNode cond = cmdSe.getFilhos().get(0);
-        String tCond = gerarCondicao(cond);
+        AstNode condNode = cmdSe.getFilhos().get(0);
+        String condTemp = genCond(condNode);
+        if (condTemp == null) return;
 
-        String rotuloFim = novoRotulo();
-        codigo.add(TacInstr.jmpFalse(tCond, rotuloFim));
+        boolean hasElse = (cmdSe.getFilhos().size() > 2);
+        String elseLabel = hasElse ? newLabel() : null;
+        String endLabel  = newLabel();
 
-        // Then
-        if (cmdSe.getFilhos().size() > 1) {
+        if (hasElse) {
+            // if (cond) then ... else ...
+            code.add(TacInstr.jmpFalse(condTemp, elseLabel));
+
             AstNode thenBlk = cmdSe.getFilhos().get(1);
-            for (AstNode cmd : thenBlk.getFilhos()) {
-                gerarComando(cmd);
-            }
-        }
+            genBlocoComandos(thenBlk);
 
-        codigo.add(TacInstr.label(rotuloFim));
+            code.add(TacInstr.jmp(endLabel));
+
+            code.add(TacInstr.label(elseLabel));
+            AstNode elseBlk = cmdSe.getFilhos().get(2);
+            genBlocoComandos(elseBlk);
+
+            code.add(TacInstr.label(endLabel));
+        } else {
+            // if (cond) then ...
+            code.add(TacInstr.jmpFalse(condTemp, endLabel));
+
+            AstNode thenBlk = cmdSe.getFilhos().get(1);
+            genBlocoComandos(thenBlk);
+
+            code.add(TacInstr.label(endLabel));
+        }
     }
 
-    /** CmdEnquanto -> 'enquanto' cond comando (AST: filho[0]=cond, filho[1]=Body) */
-    private void gerarCmdEnquanto(AstNode cmdEnquanto) {
-        if (cmdEnquanto.getFilhos().isEmpty()) return;
+    private void genCmdEnquanto(AstNode cmd) {
+        if (cmd.getFilhos().isEmpty()) return;
 
-        String rotuloInicio = novoRotulo();
-        String rotuloFim    = novoRotulo();
+        String beginLabel = newLabel();
+        String endLabel   = newLabel();
 
-        codigo.add(TacInstr.label(rotuloInicio));
+        code.add(TacInstr.label(beginLabel));
 
-        AstNode cond = cmdEnquanto.getFilhos().get(0);
-        String tCond = gerarCondicao(cond);
-
-        codigo.add(TacInstr.jmpFalse(tCond, rotuloFim));
-
-        // Corpo do laço
-        if (cmdEnquanto.getFilhos().size() > 1) {
-            AstNode body = cmdEnquanto.getFilhos().get(1);
-            for (AstNode cmd : body.getFilhos()) {
-                gerarComando(cmd);
-            }
+        AstNode condNode = cmd.getFilhos().get(0);
+        String condTemp = genCond(condNode);
+        if (condTemp == null) {
+            code.add(TacInstr.jmp(endLabel));
+            code.add(TacInstr.label(endLabel));
+            return;
         }
 
-        codigo.add(TacInstr.jmp(rotuloInicio));
-        codigo.add(TacInstr.label(rotuloFim));
+        code.add(TacInstr.jmpFalse(condTemp, endLabel));
+
+        if (cmd.getFilhos().size() > 1) {
+            AstNode body = cmd.getFilhos().get(1);
+            genBlocoComandos(body);
+        }
+
+        code.add(TacInstr.jmp(beginLabel));
+        code.add(TacInstr.label(endLabel));
     }
 
-    // ---------- expressões ----------
+    private void genBlocoComandos(AstNode bloco) {
+        for (AstNode cmd : bloco.getFilhos()) {
+            switch (cmd.getKind()) {
+                case "CmdAtrib"    -> genCmdAtrib(cmd);
+                case "CmdSe"       -> genCmdSe(cmd);
+                case "CmdEnquanto" -> genCmdEnquanto(cmd);
+                default -> {}
+            }
+        }
+    }
 
-    private String gerarExpr(AstNode e) {
-        if (e == null) return novoTemp();
+    // ---------------- Expressões / Condições ----------------
 
-        String k = e.getKind();
-        switch (k) {
+    private String genExpr(AstNode e) {
+        if (e == null) return null;
+
+        return switch (e.getKind()) {
             case "Numero" -> {
                 Token tk = e.getToken();
-                String lex = (tk != null ? tk.getLexema() : "0");
-                String t = novoTemp();
-                codigo.add(TacInstr.loadi(t, lex));
-                return t;
+                String t = newTemp();
+                code.add(TacInstr.loadi(t, tk.getLexema()));
+                yield t;
             }
             case "Ident" -> {
                 Token tk = e.getToken();
-                String nome = (tk != null ? tk.getLexema() : "<anon>");
-                String t = novoTemp();
-                codigo.add(TacInstr.load(t, nome));
-                return t;
+                String t = newTemp();
+                code.add(TacInstr.load(t, tk.getLexema()));
+                yield t;
             }
             case "OpMais" -> {
-                String a = gerarExpr(e.getFilhos().get(0));
-                String b = gerarExpr(e.getFilhos().get(1));
-                String t = novoTemp();
-                codigo.add(TacInstr.add(t, a, b));
-                return t;
+                String a = genExpr(e.getFilhos().get(0));
+                String b = genExpr(e.getFilhos().get(1));
+                String t = newTemp();
+                code.add(TacInstr.add(t, a, b));
+                yield t;
             }
             case "OpMult" -> {
-                String a = gerarExpr(e.getFilhos().get(0));
-                String b = gerarExpr(e.getFilhos().get(1));
-                String t = novoTemp();
-                codigo.add(TacInstr.mul(t, a, b));
-                return t;
+                String a = genExpr(e.getFilhos().get(0));
+                String b = genExpr(e.getFilhos().get(1));
+                String t = newTemp();
+                code.add(TacInstr.mul(t, a, b));
+                yield t;
             }
             case "OpDiv" -> {
-                String a = gerarExpr(e.getFilhos().get(0));
-                String b = gerarExpr(e.getFilhos().get(1));
-                String t = novoTemp();
-                codigo.add(TacInstr.div(t, a, b));
-                return t;
+                String a = genExpr(e.getFilhos().get(0));
+                String b = genExpr(e.getFilhos().get(1));
+                String t = newTemp();
+                code.add(TacInstr.div(t, a, b));
+                yield t;
             }
             case "OpResto" -> {
-                String a = gerarExpr(e.getFilhos().get(0));
-                String b = gerarExpr(e.getFilhos().get(1));
-                String t = novoTemp();
-                codigo.add(TacInstr.rem(t, a, b));
-                return t;
+                String a = genExpr(e.getFilhos().get(0));
+                String b = genExpr(e.getFilhos().get(1));
+                String t = newTemp();
+                code.add(TacInstr.rem(t, a, b));
+                yield t;
             }
-            default -> {
-                // fallback: tenta usar primeiro filho como expressão
-                if (!e.getFilhos().isEmpty()) {
-                    return gerarExpr(e.getFilhos().get(0));
-                }
-                String t = novoTemp();
-                codigo.add(TacInstr.nop());
-                return t;
-            }
-        }
+            default -> null;
+        };
     }
 
-    // ---------- condições ----------
+    private String genCond(AstNode c) {
+        if (c == null) return null;
 
-    /** Gera código para condição (atualmente só Rel) e devolve o registrador com 0/1. */
-    private String gerarCondicao(AstNode cond) {
-        if (cond == null) {
-            String t = novoTemp();
-            codigo.add(TacInstr.loadi(t, "0"));
-            return t;
+        if ("Rel".equals(c.getKind())) {
+            return genRel(c);
+        }
+        // Futuro: Nao, OpE, OpOU...
+        return null;
+    }
+
+    private String genRel(AstNode rel) {
+        if (rel.getFilhos().size() < 2) return null;
+
+        AstNode left  = rel.getFilhos().get(0);
+        AstNode right = rel.getFilhos().get(1);
+
+        String a = genExpr(left);
+        String b = genExpr(right);
+        if (a == null || b == null) return null;
+
+        String t = newTemp();
+        Token opTk = rel.getToken();
+        TokenTipo tp = (opTk != null ? opTk.getTipo() : null);
+
+        if (tp == TokenTipo.OP_LT) {
+            code.add(TacInstr.cmplt(t, a, b));
+        } else if (tp == TokenTipo.OP_GT) {
+            code.add(TacInstr.cmpgt(t, a, b));
+        } else if (tp == TokenTipo.OP_EQ) {
+            code.add(TacInstr.cmpeq(t, a, b));
+        } else if (tp == TokenTipo.OP_LE) {
+            code.add(TacInstr.cmple(t, a, b));
+        } else if (tp == TokenTipo.OP_GE) {
+            code.add(TacInstr.cmpge(t, a, b));
+        } else if (tp == TokenTipo.OP_NE) {
+            code.add(TacInstr.cmpne(t, a, b));
+        } else {
+            // fallback: trata como "<"
+            code.add(TacInstr.cmplt(t, a, b));
         }
 
-        if ("Rel".equals(cond.getKind())) {
-            if (cond.getFilhos().size() < 2) {
-                String t = novoTemp();
-                codigo.add(TacInstr.loadi(t, "0"));
-                return t;
-            }
-
-            AstNode left  = cond.getFilhos().get(0);
-            AstNode right = cond.getFilhos().get(1);
-
-            String tLeft  = gerarExpr(left);
-            String tRight = gerarExpr(right);
-
-            // Usamos o próprio tLeft como destino da comparação
-            Token opTk = cond.getToken();
-            TokenTipo tp = (opTk != null ? opTk.getTipo() : null);
-
-            if (tp == TokenTipo.OP_LT) {
-                codigo.add(TacInstr.cmplt(tLeft, tLeft, tRight));
-            } else if (tp == TokenTipo.OP_GT) {
-                codigo.add(TacInstr.cmpgt(tLeft, tLeft, tRight));
-            } else if (tp == TokenTipo.OP_EQ) {
-                codigo.add(TacInstr.cmpeq(tLeft, tLeft, tRight));
-            } else {
-                // fallback: trata como '<'
-                codigo.add(TacInstr.cmplt(tLeft, tLeft, tRight));
-            }
-            return tLeft;
-        }
-
-        // fallback: condição numérica (!=0 é verdadeiro)
-        return gerarExpr(cond);
+        return t;
     }
 }

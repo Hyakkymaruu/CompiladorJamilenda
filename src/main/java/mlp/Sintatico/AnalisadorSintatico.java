@@ -266,49 +266,68 @@ public class AnalisadorSintatico {
     }
 
     /** CmdSe -> 'se' '(' cond ')' 'entao' comando */
-    private AstNode parseSe() {
-        Token tSe = atual;
-        aceita(TokenTipo.KW_SE);
-        AstNode cmdSe = new AstNode("CmdSe", tSe);
+    /** CmdSe -> 'se' '(' cond ')' 'entao' comando ['senao' comando] */
+private AstNode parseSe() {
+    Token tSe = atual;
+    aceita(TokenTipo.KW_SE);
+    AstNode cmdSe = new AstNode("CmdSe", tSe);
 
-        // '('
-        consome(TokenTipo.ABRE_PAR, 1011, "esperava '(' após 'se'");
+    // '('
+    consome(TokenTipo.ABRE_PAR, 1011, "esperava '(' após 'se'");
 
-        // condição
-        AstNode cond = parseCondOuRelInvalido();
-        cmdSe.addFilho(cond);
+    // condição
+    AstNode cond = parseCondOuRelInvalido();
+    cmdSe.addFilho(cond);
 
-        // ')'
-        if (!aceita(TokenTipo.FECHA_PAR)) {
-            emitir(1013, "esperava ')' após condição", atual);
-            while (atual.getTipo() != TokenTipo.FECHA_PAR
-                && atual.getTipo() != TokenTipo.KW_ENTAO
-                && atual.getTipo() != TokenTipo.KW_SE
-                && atual.getTipo() != TokenTipo.KW_ENQUANTO
-                && atual.getTipo() != TokenTipo.END
-                && atual.getTipo() != TokenTipo.EOF) {
-                atual = lx.proximo();
-            }
-            aceita(TokenTipo.FECHA_PAR);
+    // ')' — sempre checar e diagnosticar (não parar)
+    if (!aceita(TokenTipo.FECHA_PAR)) {
+        emitir(1013, "esperava ')' após condição", atual);
+        // pequena recuperação: consome tudo até achar ')' ou palavra-chave seguinte
+        while (atual.getTipo() != TokenTipo.FECHA_PAR
+            && atual.getTipo() != TokenTipo.KW_ENTAO
+            && atual.getTipo() != TokenTipo.KW_SENAO
+            && atual.getTipo() != TokenTipo.KW_SE
+            && atual.getTipo() != TokenTipo.KW_ENQUANTO
+            && atual.getTipo() != TokenTipo.END
+            && atual.getTipo() != TokenTipo.EOF) {
+            atual = lx.proximo();
         }
-
-        // 'entao'
-        if (!aceita(TokenTipo.KW_ENTAO)) {
-            emitir(1014, "esperava 'entao'", atual);
-        }
-
-        // Then (um comando)
-        AstNode thenBlk = new AstNode("Then", tSe);
-        if (isInicioComando()) {
-            AstNode c = parseComando();
-            if (c != null) thenBlk.addFilho(c);
-        } else {
-            emitir(1001, "comando inválido", atual);
-        }
-        cmdSe.addFilho(thenBlk);
-
-        return cmdSe;
+        aceita(TokenTipo.FECHA_PAR); // consome se encontrado
     }
+
+    // 'entao' — sempre checar e diagnosticar (não parar)
+    if (!aceita(TokenTipo.KW_ENTAO)) {
+        emitir(1014, "esperava 'entao'", atual);
+        // não consumir aqui; deixa seguir para tentar ler próximo comando
+    }
+
+    // Then (um comando)
+    AstNode thenBlk = new AstNode("Then", tSe);
+    if (isInicioComando()) {
+        AstNode c = parseComando();
+        if (c != null) thenBlk.addFilho(c);
+    } else {
+        // nada inicia comando — registre e siga
+        emitir(1001, "comando inválido", atual);
+    }
+    cmdSe.addFilho(thenBlk);
+
+    // Opcional: 'senao' comando
+    if (atual.getTipo() == TokenTipo.KW_SENAO) {
+        aceita(TokenTipo.KW_SENAO); // consome 'senao'
+        AstNode elseBlk = new AstNode("Else", tSe);
+        if (isInicioComando()) {
+            AstNode cElse = parseComando();
+            if (cElse != null) elseBlk.addFilho(cElse);
+        } else {
+            emitir(1001, "comando inválido após 'senao'", atual);
+        }
+        cmdSe.addFilho(elseBlk);
+    }
+
+    return cmdSe;
+}
+
 
     /** CmdEnquanto -> 'enquanto' '(' cond ')' comando */
     private AstNode parseEnquanto() {

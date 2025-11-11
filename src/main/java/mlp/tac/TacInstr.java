@@ -5,7 +5,7 @@ public class TacInstr {
     public enum Op {
         LOAD, LOADI, STORE,
         ADD, ADDI, SUB, SUBI, MUL, DIV, REM,
-        CMPGT, CMPLT, CMPEQ,
+        CMPGT, CMPLT, CMPEQ, CMPLE, CMPGE, CMPNE,
         JMP, JMPFALSE, JMPTRUE,
         LABEL, NOP
     }
@@ -78,6 +78,18 @@ public class TacInstr {
         return new TacInstr(Op.CMPEQ, dst, a, b, null);
     }
 
+    public static TacInstr cmple(String dst, String a, String b) {
+        return new TacInstr(Op.CMPLE, dst, a, b, null);
+    }
+
+    public static TacInstr cmpge(String dst, String a, String b) {
+        return new TacInstr(Op.CMPGE, dst, a, b, null);
+    }
+
+    public static TacInstr cmpne(String dst, String a, String b) {
+        return new TacInstr(Op.CMPNE, dst, a, b, null);
+    }
+
     public static TacInstr jmp(String label) {
         return new TacInstr(Op.JMP, label, null, null, null);
     }
@@ -110,7 +122,7 @@ public class TacInstr {
                 yield String.format("%s %s, %s", op.name(), a1, a2);
             }
             case ADD, ADDI, SUB, SUBI, MUL, DIV, REM,
-                 CMPGT, CMPLT, CMPEQ -> {
+                 CMPGT, CMPLT, CMPEQ, CMPLE, CMPGE, CMPNE -> {
                 // 3 operandos: OP a1, a2, a3
                 yield String.format("%s %s, %s, %s", op.name(), a1, a2, a3);
             }

@@ -11,5 +11,6 @@ mlp/Lexico/AnalisadorLexico.class
 mlp/Simbolos/TabelaSimbolos$Entrada.class
 mlp/Lexico/TokenTipo.class
 mlp/Sintatico/AnalisadorSintatico$1.class
+mlp/tac/TacInstr$1.class
 mlp/Main.class
 mlp/Semantico/AnalisadorSemantico$1.class
