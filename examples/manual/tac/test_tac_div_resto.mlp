@@ -1,0 +1,10 @@
+$
+inteiro a, b, c, d;
+
+a = 7;
+b = 2;
+
+c = a / b;
+d = a RESTO b;
+
+$.

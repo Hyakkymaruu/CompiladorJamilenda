@@ -184,14 +184,16 @@ public class GeradorTAC {
         };
     }
 
-    private String genCond(AstNode c) {
+            private String genCond(AstNode c) {
         if (c == null) return null;
 
-        if ("Rel".equals(c.getKind())) {
-            return genRel(c);
-        }
-        // Futuro: Nao, OpE, OpOU...
-        return null;
+        return switch (c.getKind()) {
+            case "Rel"  -> genRel(c);       // já existia
+            case "Nao"  -> genCondNao(c);   // novo: NOT
+            case "OpE"  -> genCondE(c);     // novo: AND
+            case "OpOU" -> genCondOu(c);    // novo: OR
+            default     -> null;
+        };
     }
 
     private String genRel(AstNode rel) {
@@ -227,4 +229,65 @@ public class GeradorTAC {
 
         return t;
     }
+        // NAO <cond>
+    private String genCondNao(AstNode naoNode) {
+        if (naoNode.getFilhos().isEmpty()) return null;
+
+        // filho é outra condição (Rel, OpE, OpOU, ou outro NAO)
+        AstNode inner = naoNode.getFilhos().get(0);
+        String v = genCond(inner);
+        if (v == null) return null;
+
+        // queremos: resultado = (v == 0)
+        String zero = newTemp();
+        code.add(TacInstr.loadi(zero, "0"));
+
+        String t = newTemp();
+        code.add(TacInstr.cmpeq(t, v, zero)); // t = (v == 0 ? 1 : 0)
+
+        return t;
+    }
+
+    // <cond> E <cond>
+    private String genCondE(AstNode node) {
+        if (node.getFilhos().size() < 2) return null;
+
+        String a = genCond(node.getFilhos().get(0));
+        String b = genCond(node.getFilhos().get(1));
+        if (a == null || b == null) return null;
+
+        // AND: (a && b) -> (a * b) != 0
+        String mul = newTemp();
+        code.add(TacInstr.mul(mul, a, b));
+
+        String zero = newTemp();
+        code.add(TacInstr.loadi(zero, "0"));
+
+        String t = newTemp();
+        code.add(TacInstr.cmpne(t, mul, zero)); // t = (mul != 0 ? 1 : 0)
+
+        return t;
+    }
+
+    // <cond> OU <cond>
+    private String genCondOu(AstNode node) {
+        if (node.getFilhos().size() < 2) return null;
+
+        String a = genCond(node.getFilhos().get(0));
+        String b = genCond(node.getFilhos().get(1));
+        if (a == null || b == null) return null;
+
+        // OR: (a || b) -> (a + b) != 0
+        String sum = newTemp();
+        code.add(TacInstr.add(sum, a, b));
+
+        String zero = newTemp();
+        code.add(TacInstr.loadi(zero, "0"));
+
+        String t = newTemp();
+        code.add(TacInstr.cmpne(t, sum, zero)); // t = (sum != 0 ? 1 : 0)
+
+        return t;
+    }
+
 }
