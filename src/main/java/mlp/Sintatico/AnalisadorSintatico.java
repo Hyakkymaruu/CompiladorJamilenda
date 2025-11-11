@@ -226,7 +226,6 @@ public class AnalisadorSintatico {
     }
 
     /** CmdAtrib -> IDENT '=' expressao ';' */
-    /** CmdAtrib -> IDENT '=' expressao ';' */
     private AstNode parseAtrib() {
         Token identTok = atual;
         AstNode cmd = new AstNode("CmdAtrib", identTok);
@@ -256,78 +255,71 @@ public class AnalisadorSintatico {
 
         // Exigir ';' (com diagnóstico, sem parar a análise)
         exigirPontoVirgulaSePossivel();
-        // ⚠️ IMPORTANTE: NÃO sincronizar aqui no caso de sucesso.
-        // Deixar o laço do parsePrograma() continuar a partir do próximo token
-        // (normalmente o início do próximo comando).
 
         return cmd;
-
-
     }
 
-    /** CmdSe -> 'se' '(' cond ')' 'entao' comando */
     /** CmdSe -> 'se' '(' cond ')' 'entao' comando ['senao' comando] */
-private AstNode parseSe() {
-    Token tSe = atual;
-    aceita(TokenTipo.KW_SE);
-    AstNode cmdSe = new AstNode("CmdSe", tSe);
+    private AstNode parseSe() {
+        Token tSe = atual;
+        aceita(TokenTipo.KW_SE);
+        AstNode cmdSe = new AstNode("CmdSe", tSe);
 
-    // '('
-    consome(TokenTipo.ABRE_PAR, 1011, "esperava '(' após 'se'");
+        // '('
+        consome(TokenTipo.ABRE_PAR, 1011, "esperava '(' após 'se'");
 
-    // condição
-    AstNode cond = parseCondOuRelInvalido();
-    cmdSe.addFilho(cond);
+        // condição
+        AstNode cond = parseCondOuRelInvalido();
+        cmdSe.addFilho(cond);
 
-    // ')' — sempre checar e diagnosticar (não parar)
-    if (!aceita(TokenTipo.FECHA_PAR)) {
-        emitir(1013, "esperava ')' após condição", atual);
-        // pequena recuperação: consome tudo até achar ')' ou palavra-chave seguinte
-        while (atual.getTipo() != TokenTipo.FECHA_PAR
-            && atual.getTipo() != TokenTipo.KW_ENTAO
-            && atual.getTipo() != TokenTipo.KW_SENAO
-            && atual.getTipo() != TokenTipo.KW_SE
-            && atual.getTipo() != TokenTipo.KW_ENQUANTO
-            && atual.getTipo() != TokenTipo.END
-            && atual.getTipo() != TokenTipo.EOF) {
-            atual = lx.proximo();
+        // ')' — sempre checar e diagnosticar (não parar)
+        if (!aceita(TokenTipo.FECHA_PAR)) {
+            emitir(1013, "esperava ')' após condição", atual);
+            // pequena recuperação: consome tudo até achar ')' ou palavra-chave seguinte
+            while (atual.getTipo() != TokenTipo.FECHA_PAR
+                && atual.getTipo() != TokenTipo.KW_ENTAO
+                && atual.getTipo() != TokenTipo.KW_SENAO
+                && atual.getTipo() != TokenTipo.KW_SE
+                && atual.getTipo() != TokenTipo.KW_ENQUANTO
+                && atual.getTipo() != TokenTipo.END
+                && atual.getTipo() != TokenTipo.EOF) {
+                atual = lx.proximo();
+            }
+            aceita(TokenTipo.FECHA_PAR); // consome se encontrado
         }
-        aceita(TokenTipo.FECHA_PAR); // consome se encontrado
-    }
 
-    // 'entao' — sempre checar e diagnosticar (não parar)
-    if (!aceita(TokenTipo.KW_ENTAO)) {
-        emitir(1014, "esperava 'entao'", atual);
-        // não consumir aqui; deixa seguir para tentar ler próximo comando
-    }
+        // 'entao' — sempre checar e diagnosticar (não parar)
+        if (!aceita(TokenTipo.KW_ENTAO)) {
+            emitir(1014, "esperava 'entao'", atual);
+            // não consumir aqui; deixa seguir para tentar ler próximo comando
+        }
 
-    // Then (um comando)
-    AstNode thenBlk = new AstNode("Then", tSe);
-    if (isInicioComando()) {
-        AstNode c = parseComando();
-        if (c != null) thenBlk.addFilho(c);
-    } else {
-        // nada inicia comando — registre e siga
-        emitir(1001, "comando inválido", atual);
-    }
-    cmdSe.addFilho(thenBlk);
-
-    // Opcional: 'senao' comando
-    if (atual.getTipo() == TokenTipo.KW_SENAO) {
-        aceita(TokenTipo.KW_SENAO); // consome 'senao'
-        AstNode elseBlk = new AstNode("Else", tSe);
+        // Then (um comando)
+        AstNode thenBlk = new AstNode("Then", tSe);
         if (isInicioComando()) {
-            AstNode cElse = parseComando();
-            if (cElse != null) elseBlk.addFilho(cElse);
+            AstNode c = parseComando();
+            if (c != null) thenBlk.addFilho(c);
         } else {
-            emitir(1001, "comando inválido após 'senao'", atual);
+            // nada inicia comando — registre e siga
+            emitir(1001, "comando inválido", atual);
         }
-        cmdSe.addFilho(elseBlk);
+        cmdSe.addFilho(thenBlk);
+
+        // Opcional: 'senao' comando
+        if (atual.getTipo() == TokenTipo.KW_SENAO) {
+            aceita(TokenTipo.KW_SENAO); // consome 'senao'
+            AstNode elseBlk = new AstNode("Else", tSe);
+            if (isInicioComando()) {
+                AstNode cElse = parseComando();
+                if (cElse != null) elseBlk.addFilho(cElse);
+            } else {
+                emitir(1001, "comando inválido após 'senao'", atual);
+            }
+            cmdSe.addFilho(elseBlk);
+        }
+
+        return cmdSe;
     }
-
-    return cmdSe;
-}
-
 
     /** CmdEnquanto -> 'enquanto' '(' cond ')' comando */
     private AstNode parseEnquanto() {
@@ -378,21 +370,125 @@ private AstNode parseSe() {
         return inv;
     }
 
+    /**
+     * Wrapper usado por 'se' e 'enquanto':
+     * tenta parsear uma condição completa (NAO/E/OU/Rel).
+     * Se falhar, devolve um Rel inválido com FatorInvalido.
+     */
     private AstNode parseCondOuRelInvalido() {
+        AstNode cond = parseCond();
+        if (cond != null) {
+            return cond;
+        }
+
+        // fallback: Rel inválido
+        Token start = atual;
+        AstNode relInv = new AstNode(
+            "Rel",
+            new Token(TokenTipo.INVALIDO, "<invalido>", start.getLinha(), start.getColuna())
+        );
+        relInv.addFilho(new AstNode("FatorInvalido", atual));
+        return relInv;
+    }
+
+    // ---------- Condições lógicas ----------
+
+    // cond -> cond_ou
+    private AstNode parseCond() {
+        return parseCondOu();
+    }
+
+    // cond_ou -> cond_e { 'OU' cond_e }
+    private AstNode parseCondOu() {
+        AstNode left = parseCondE();
+        if (left == null) return null;
+
+        while (atual.getTipo() == TokenTipo.KW_OU) {
+            Token t = atual;
+            aceita(TokenTipo.KW_OU);
+            AstNode n = new AstNode("OpOU", t);
+            n.addFilho(left);
+
+            AstNode right = parseCondE();
+            if (right == null) {
+                n.addFilho(new AstNode("FatorInvalido", atual));
+                return n;
+            }
+            n.addFilho(right);
+            left = n;
+        }
+        return left;
+    }
+
+    // cond_e -> cond_nao { 'E' cond_nao }
+    private AstNode parseCondE() {
+        AstNode left = parseCondNao();
+        if (left == null) return null;
+
+        while (atual.getTipo() == TokenTipo.KW_E) {
+            Token t = atual;
+            aceita(TokenTipo.KW_E);
+            AstNode n = new AstNode("OpE", t);
+            n.addFilho(left);
+
+            AstNode right = parseCondNao();
+            if (right == null) {
+                n.addFilho(new AstNode("FatorInvalido", atual));
+                return n;
+            }
+            n.addFilho(right);
+            left = n;
+        }
+        return left;
+    }
+
+    // cond_nao -> 'NAO' cond_nao | '(' cond ')' | rel
+    private AstNode parseCondNao() {
+        // NAO <cond_nao>
+        if (atual.getTipo() == TokenTipo.KW_NAO) {
+            Token t = atual;
+            aceita(TokenTipo.KW_NAO);
+            AstNode n = new AstNode("Nao", t);
+
+            AstNode inner = parseCondNao();
+            if (inner == null) {
+                n.addFilho(new AstNode("FatorInvalido", atual));
+                return n;
+            }
+            n.addFilho(inner);
+            return n;
+        }
+
+        // '(' cond ')'  -> parênteses em volta de condição lógica
+        if (atual.getTipo() == TokenTipo.ABRE_PAR) {
+            aceita(TokenTipo.ABRE_PAR);
+            AstNode inner = parseCond();
+            consome(TokenTipo.FECHA_PAR, 1012, "esperava ')' após expressão");
+            return inner;
+        }
+
+        // rel
+        return parseRel();
+    }
+
+    // rel -> opndRel opRel opndRel   (com tratamento de erro)
+    private AstNode parseRel() {
         Token start = atual;
 
         AstNode left = parseOpndRel();
         if (left == null) {
-            AstNode relInv = new AstNode("Rel", new Token(TokenTipo.INVALIDO, "<invalido>", start.getLinha(), start.getColuna()));
-            relInv.addFilho(new AstNode("FatorInvalido", atual));
-            return relInv;
+            // não conseguimos nem ler o primeiro operando
+            return null;
         }
 
         // Operador relacional
         Token relop = atual;
         if (!isRelop(relop.getTipo())) {
             emitir(1010, "esperava operador relacional", atual);
-            AstNode relInv = new AstNode("Rel", new Token(TokenTipo.INVALIDO, "<invalido>", relop.getLinha(), relop.getColuna()));
+            AstNode relInv = new AstNode(
+                "Rel",
+                new Token(TokenTipo.INVALIDO, "<invalido>", relop.getLinha(), relop.getColuna())
+            );
             relInv.addFilho(left);
             relInv.addFilho(new AstNode("FatorInvalido", atual));
             return relInv;
@@ -401,7 +497,10 @@ private AstNode parseSe() {
 
         AstNode right = parseOpndRel();
         if (right == null) {
-            AstNode relInv = new AstNode("Rel", new Token(TokenTipo.INVALIDO, "<invalido>", relop.getLinha(), relop.getColuna()));
+            AstNode relInv = new AstNode(
+                "Rel",
+                new Token(TokenTipo.INVALIDO, "<invalido>", relop.getLinha(), relop.getColuna())
+            );
             relInv.addFilho(left);
             relInv.addFilho(new AstNode("FatorInvalido", atual));
             return relInv;

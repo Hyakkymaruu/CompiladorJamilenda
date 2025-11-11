@@ -1,0 +1,11 @@
+src/main/java/mlp/ast/AstNode.java
+src/main/java/mlp/Erros/Diagnostico.java
+src/main/java/mlp/Lexico/AnalisadorLexico.java
+src/main/java/mlp/Lexico/Token.java
+src/main/java/mlp/Lexico/TokenTipo.java
+src/main/java/mlp/Main.java
+src/main/java/mlp/Semantico/AnalisadorSemantico.java
+src/main/java/mlp/Simbolos/TabelaSimbolos.java
+src/main/java/mlp/Sintatico/AnalisadorSintatico.java
+src/main/java/mlp/tac/GeradorTAC.java
+src/main/java/mlp/tac/TacInstr.java

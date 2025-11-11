@@ -87,6 +87,12 @@ public class AnalisadorSemantico {
     // ---------------- Comandos ----------------
 
     private void analisarCmdAtrib(AstNode n) {
+        // Se o comando de atribuição está incompleto (por erro sintático),
+        // ele pode ter só o LValue como filho. Nesse caso, não há o que checar.
+        if (n == null || n.getFilhos().size() < 2) {
+            return; // evita IndexOutOfBoundsException
+        }
+
         // Destino
         AstNode lvalue = n.getFilhos().get(0);
         // LValue pode ter o token diretamente ou ter um filho "Ident"

@@ -1,0 +1,16 @@
+$
+inteiro a, b;
+
+a = 1;
+b = 2;
+
+se ( NAO ( a < b ) ) entao
+  a = a + 1;
+
+se ( ( a < b ) E ( a != 0 ) ) entao
+  a = a + 2;
+
+se ( ( a > b ) OU ( a == 0 ) ) entao
+  a = a + 3;
+
+$.
