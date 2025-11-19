@@ -103,81 +103,81 @@ public class Main {
 
         // -------- RELATÓRIOS --------
 
-    // TOKENS — SOMENTE A VERSÃO COMENTADA
-    np.printTokensWithNarration(tokens);
+        // TOKENS: apenas versão comentada
+        np.printTokensWithNarration(tokens);
 
-    // PALAVRAS-RESERVADAS
-    System.out.println(">>> PALAVRAS-RESERVADAS ENCONTRADAS");
-    for (Token t : tokens) {
-        if (isPalavraReservada(t.getTipo())) {
-            System.out.printf("  %-12s %-12s @%d:%d\n",
+        // PALAVRAS-RESERVADAS
+        System.out.println(">>> PALAVRAS-RESERVADAS ENCONTRADAS");
+        for (Token t : tokens) {
+            if (isPalavraReservada(t.getTipo())) {
+                System.out.printf("  %-12s %-12s @%d:%d\n",
                     t.getTipo(), quote(t.getLexema()), t.getLinha(), t.getColuna());
+            }
         }
-    }
 
-    // AST — SOMENTE A VERSÃO COMENTADA
-    np.printAstWithNarration(programa);
+        // AST: apenas versão comentada
+        np.printAstWithNarration(programa);
 
-    // TABELA DE SÍMBOLOS
-    System.out.println(">>> TABELA DE SIMBOLOS");
-    if (sem.getTabela() != null && sem.getTabela().todas() != null && !sem.getTabela().todas().isEmpty()) {
-        for (var e : sem.getTabela().todas().values()) {
-            System.out.printf("  %-12s : %-7s @%d:%d\n",
-                    e.nome, e.tipo, e.linha, e.coluna);
+        // TABELA DE SÍMBOLOS
+        System.out.println(">>> TABELA DE SIMBOLOS");
+        if (sem.getTabela() != null && sem.getTabela().todas() != null && !sem.getTabela().todas().isEmpty()) {
+            for (var e : sem.getTabela().todas().values()) {
+                System.out.printf("  %-12s : %-7s @%d:%d\n", e.nome, e.tipo, e.linha, e.coluna);
+            }
+        } else {
+            System.out.println("  (nao gerada devido a erros lexico/sintaticos ou tabela vazia)");
         }
-    } else {
-        System.out.println("  (vazia ou não construída nesta etapa)");
-    }
 
-    // DIAGNÓSTICOS
-    List<Diagnostico> all = new ArrayList<>();
-    all.addAll(diagsLexColeta);
-    all.addAll(diagsLex);
-    all.addAll(diagsSint);
-    all.addAll(diagsSem);
+        // DIAGNÓSTICOS
+        List<Diagnostico> all = new ArrayList<>();
+        all.addAll(diagsLexColeta);
+        all.addAll(diagsLex);
+        all.addAll(diagsSint);
+        all.addAll(diagsSem);
 
-    // Remove duplicados
-    List<Diagnostico> allUnique = new ArrayList<>();
-    java.util.Set<String> seen = new java.util.LinkedHashSet<>();
-    for (Diagnostico d : all) {
-        String key = d.toString();
-        if (seen.add(key)) {
-            allUnique.add(d);
+        // remover duplicados (mesmo texto de diagnóstico)
+        List<Diagnostico> allUnique = new ArrayList<>();
+        java.util.Set<String> seen = new java.util.LinkedHashSet<>();
+        for (Diagnostico d : all) {
+            String key = d.toString();
+            if (seen.add(key)) {
+                allUnique.add(d);
+            }
         }
-    }
 
-    System.out.println(">>> DIAGNOSTICOS");
-    if (allUnique.isEmpty()) {
-        System.out.println("  (nenhum)");
-    } else {
+        System.out.println(">>> DIAGNOSTICOS");
+        if (allUnique.isEmpty()) {
+            System.out.println("  (nenhum)");
+        } else {
+            for (Diagnostico d : allUnique) {
+                System.out.println("  " + d);
+            }
+        }
+
+        int cLex = 0, cSin = 0, cSem = 0;
         for (Diagnostico d : allUnique) {
-            System.out.println("  " + d);
+            switch (d.getTipo()) {
+                case LEXICO -> cLex++;
+                case SINTATICO -> cSin++;
+                case SEMANTICO -> cSem++;
+            }
         }
-    }
+        int total = cLex + cSin + cSem;
 
-    int cLex = 0, cSin = 0, cSem = 0;
-    for (Diagnostico d : allUnique) {
-        switch (d.getTipo()) {
-            case LEXICO -> cLex++;
-            case SINTATICO -> cSin++;
-            case SEMANTICO -> cSem++;
+        System.out.println(">>> RESUMO");
+        System.out.printf("  LEXICO: %d  SINTATICO: %d  SEMANTICO: %d  TOTAL: %d\n",
+                cLex, cSin, cSem, total);
+
+        // --- GERAÇÃO DE CÓDIGO INTERMEDIÁRIO (TAC) ---
+        if (total == 0) {
+            GeradorTAC gerador = new GeradorTAC();
+            List<TacInstr> tac = gerador.gerar(programa);
+
+            // Imprime TAC comentado
+            np.printTacWithNarration(tac);
         }
-    }
-    int total = cLex + cSin + cSem;
 
-    System.out.println(">>> RESUMO");
-    System.out.printf("  LEXICO: %d  SINTATICO: %d  SEMANTICO: %d  TOTAL: %d\n",
-            cLex, cSin, cSem, total);
-
-    // --- GERAÇÃO DE CÓDIGO INTERMEDIÁRIO (TAC) — SOMENTE COMENTADO ---
-    if (total == 0) {
-        GeradorTAC gerador = new GeradorTAC();
-        List<TacInstr> tac = gerador.gerar(programa);
-        np.printTacWithNarration(tac);
-    }
-
-    return total > 0;
-
+        return total > 0;
     }
 
     // -------- utilidades --------

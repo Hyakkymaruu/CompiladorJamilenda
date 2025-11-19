@@ -1,0 +1,24 @@
+$
+inteiro i, limite;
+real acumulador;
+caracter flag;
+
+i = 0;
+limite = 10;
+acumulador = 0;
+
+enquanto (i < limite)
+  se i RESTO 2 == 0 entao   // ok para RESTO, mas expressão mais complexa
+    acumulador = acumulador + 1.5;
+  senao
+    x = x + 1;              // 'x' não declarada
+  ;
+;
+
+se (flag) entao             // 'flag' é CARACTER usado como booleano
+  limite = 3.5;             // REAL atribuído a inteiro
+senao
+  flag = 1;                 // INT atribuído a CARACTER
+;
+
+$.

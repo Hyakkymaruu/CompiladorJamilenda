@@ -473,7 +473,6 @@ public class AnalisadorSintatico {
 
     // rel -> opndRel opRel opndRel   (com tratamento de erro)
     private AstNode parseRel() {
-        Token start = atual;
 
         AstNode left = parseOpndRel();
         if (left == null) {

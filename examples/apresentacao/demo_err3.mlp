@@ -1,0 +1,17 @@
+$
+inteiro a, b;
+real r;
+caracter ch, e;
+
+a = 10;
+b = 2;
+r = 3.5;
+
+a = r;
+c = a + b;
+
+se (a < d) entao
+    r = a + 1;
+enquanto (a < 100)
+    e = e + 1;
+$.

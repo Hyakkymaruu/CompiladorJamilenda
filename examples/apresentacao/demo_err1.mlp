@@ -1,0 +1,10 @@
+$
+inteiro a;
+real r;
+inteiro a;        // redeclaração de 'a' (mesmo nome)
+
+a = 3.5;         // atribuição de real para inteiro
+r = a RESTO r;   // RESTO com operando real (r)
+
+y = a + 1;       // uso de variável não declarada 'y'
+$.
