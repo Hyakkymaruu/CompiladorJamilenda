@@ -2,9 +2,11 @@ mlp/Erros/Diagnostico.class
 mlp/Simbolos/TabelaSimbolos$TipoSimples.class
 mlp/Semantico/AnalisadorSemantico.class
 mlp/Main$1.class
+mlp/tac/TacInstr$Op.class
 mlp/Erros/Diagnostico$Tipo.class
 mlp/Lexico/Token.class
 mlp/Sintatico/AnalisadorSintatico.class
+mlp/relato/NarratedPrinter.class
 mlp/Simbolos/TabelaSimbolos.class
 mlp/ast/AstNode.class
 mlp/Lexico/AnalisadorLexico.class
@@ -13,4 +15,7 @@ mlp/Lexico/TokenTipo.class
 mlp/Sintatico/AnalisadorSintatico$1.class
 mlp/tac/TacInstr$1.class
 mlp/Main.class
+mlp/relato/NarratedPrinter$1.class
+mlp/tac/TacInstr.class
 mlp/Semantico/AnalisadorSemantico$1.class
+mlp/tac/GeradorTAC.class

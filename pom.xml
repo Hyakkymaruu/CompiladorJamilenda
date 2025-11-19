@@ -19,6 +19,9 @@
   </dependencies>
 
   <build>
+    <!-- NOME FINAL DO JAR -->
+    <finalName>compilador-mlp</finalName>
+
     <plugins>
       <!-- Test runner -->
       <plugin>
@@ -26,7 +29,8 @@
         <artifactId>maven-surefire-plugin</artifactId>
         <version>3.2.5</version>
       </plugin>
-      <!-- (Opcional) Executar Main com mvn exec:java -->
+
+      <!-- Executar Main com mvn exec:java (opcional) -->
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>exec-maven-plugin</artifactId>
@@ -35,7 +39,8 @@
           <mainClass>mlp.Main</mainClass>
         </configuration>
       </plugin>
-      <!-- (Opcional) Gerar JAR executável futuramente -->
+
+      <!-- Gerar JAR executável -->
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-jar-plugin</artifactId>

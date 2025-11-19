@@ -3,6 +3,7 @@
 /mnt/c/Users/CSF/Documents/Facul/10 semestre/Compiladores II/ProjetoCompiladoresII/compilador-mlp Backup/compilador-mlp/src/main/java/mlp/tac/TacInstr.java
 /mnt/c/Users/CSF/Documents/Facul/10 semestre/Compiladores II/ProjetoCompiladoresII/compilador-mlp Backup/compilador-mlp/src/main/java/mlp/Lexico/AnalisadorLexico.java
 /mnt/c/Users/CSF/Documents/Facul/10 semestre/Compiladores II/ProjetoCompiladoresII/compilador-mlp Backup/compilador-mlp/src/main/java/mlp/Simbolos/TabelaSimbolos.java
+/mnt/c/Users/CSF/Documents/Facul/10 semestre/Compiladores II/ProjetoCompiladoresII/compilador-mlp Backup/compilador-mlp/src/main/java/mlp/relato/NarratedPrinter.java
 /mnt/c/Users/CSF/Documents/Facul/10 semestre/Compiladores II/ProjetoCompiladoresII/compilador-mlp Backup/compilador-mlp/src/main/java/mlp/Sintatico/AnalisadorSintatico.java
 /mnt/c/Users/CSF/Documents/Facul/10 semestre/Compiladores II/ProjetoCompiladoresII/compilador-mlp Backup/compilador-mlp/src/main/java/mlp/Lexico/Token.java
 /mnt/c/Users/CSF/Documents/Facul/10 semestre/Compiladores II/ProjetoCompiladoresII/compilador-mlp Backup/compilador-mlp/src/main/java/mlp/Semantico/AnalisadorSemantico.java

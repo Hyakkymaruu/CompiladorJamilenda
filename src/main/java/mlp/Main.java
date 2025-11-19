@@ -14,7 +14,7 @@ import mlp.Semantico.AnalisadorSemantico;
 import mlp.ast.AstNode;
 import mlp.tac.GeradorTAC;
 import mlp.tac.TacInstr;
-
+import mlp.relato.NarratedPrinter;
 
 public class Main {
 
@@ -26,45 +26,44 @@ public class Main {
             System.exit(1);
         }
 
-            if ("--run-examples".equals(args[0])) {
-    Path base = Paths.get(args.length > 1 ? args[1] : "examples");
+        if ("--run-examples".equals(args[0])) {
+            Path base = Paths.get(args.length > 1 ? args[1] : "examples");
 
-    if (!Files.exists(base)) {
-        System.err.println("[run-examples] Diretório não existe: " + base.toAbsolutePath());
-        System.exit(1);
-    }
+            if (!Files.exists(base)) {
+                System.err.println("[run-examples] Diretório não existe: " + base.toAbsolutePath());
+                System.exit(1);
+            }
 
-    System.out.println("[run-examples] Varredo recursivamente: " + base.toAbsolutePath());
+            System.out.println("[run-examples] Varredo recursivamente: " + base.toAbsolutePath());
 
-    List<Path> arquivos;
-    try (var stream = Files.walk(base)) {
-        arquivos = stream
-            .filter(f -> f.toString().endsWith(".mlp"))
-            .sorted()
-            .toList(); // Se estiver em Java <16, use Collectors.toList()
-    }
+            List<Path> arquivos;
+            try (var stream = Files.walk(base)) {
+                arquivos = stream
+                    .filter(f -> f.toString().endsWith(".mlp"))
+                    .sorted()
+                    .toList();
+            }
 
-    if (arquivos.isEmpty()) {
-        System.out.println("[run-examples] Nenhum arquivo .mlp encontrado.");
-        System.exit(0);
-    }
+            if (arquivos.isEmpty()) {
+                System.out.println("[run-examples] Nenhum arquivo .mlp encontrado.");
+                System.exit(0);
+            }
 
-    System.out.println("[run-examples] Encontrados " + arquivos.size() + " arquivos .mlp");
-    boolean anyErrors = false;
+            System.out.println("[run-examples] Encontrados " + arquivos.size() + " arquivos .mlp");
+            boolean anyErrors = false;
 
-    for (Path p : arquivos) {
-        try {
-            boolean hadErrors = processarArquivo(p);
-            anyErrors |= hadErrors;
-        } catch (Exception e) {
-            e.printStackTrace();
-            anyErrors = true;
+            for (Path p : arquivos) {
+                try {
+                    boolean hadErrors = processarArquivo(p);
+                    anyErrors |= hadErrors;
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    anyErrors = true;
+                }
+            }
+
+            System.exit(anyErrors ? 2 : 0);
         }
-    }
-
-    System.exit(anyErrors ? 2 : 0);
-}
-
 
         boolean hadErrors = processarArquivo(Paths.get(args[0]));
         System.exit(hadErrors ? 2 : 0);
@@ -95,55 +94,53 @@ public class Main {
         List<Diagnostico> diagsLex = lx.getDiagnosticos();    // do parsing real
         List<Diagnostico> diagsSint = ps.getDiagnosticos();
 
-        // 3) SEMÂNTICO (se já existir implementação)
+        // 3) SEMÂNTICO
         AnalisadorSemantico sem = new AnalisadorSemantico();
         sem.analisar(programa);
         List<Diagnostico> diagsSem = sem.getDiagnosticos();
 
+        NarratedPrinter np = new NarratedPrinter(System.out);
+
         // -------- RELATÓRIOS --------
 
-        // TOKENS
-        System.out.println(">>> TOKENS (ordem de leitura)");
-        for (Token t : tokens) {
+    // TOKENS — SOMENTE A VERSÃO COMENTADA
+    np.printTokensWithNarration(tokens);
+
+    // PALAVRAS-RESERVADAS
+    System.out.println(">>> PALAVRAS-RESERVADAS ENCONTRADAS");
+    for (Token t : tokens) {
+        if (isPalavraReservada(t.getTipo())) {
             System.out.printf("  %-12s %-12s @%d:%d\n",
-                t.getTipo(), quote(t.getLexema()), t.getLinha(), t.getColuna());
-        }
-
-        // PALAVRAS-RESERVADAS
-        System.out.println(">>> PALAVRAS-RESERVADAS ENCONTRADAS");
-        for (Token t : tokens) {
-            if (isPalavraReservada(t.getTipo())) {
-                System.out.printf("  %-12s %-12s @%d:%d\n",
                     t.getTipo(), quote(t.getLexema()), t.getLinha(), t.getColuna());
-            }
         }
+    }
 
-        // AST
-        System.out.println(">>> AST");
-        System.out.print(programa.toTreeString());
+    // AST — SOMENTE A VERSÃO COMENTADA
+    np.printAstWithNarration(programa);
 
-        // TABELA DE SÍMBOLOS
-        System.out.println(">>> TABELA DE SIMBOLOS");
-        if (sem.getTabela() != null && sem.getTabela().todas() != null && !sem.getTabela().todas().isEmpty()) {
-            for (var e : sem.getTabela().todas().values()) {
-                System.out.printf("  %-12s : %-7s @%d:%d\n", e.nome, e.tipo, e.linha, e.coluna);
-            }
-        } else {
-            System.out.println("  (vazia ou não construída nesta etapa)");
+    // TABELA DE SÍMBOLOS
+    System.out.println(">>> TABELA DE SIMBOLOS");
+    if (sem.getTabela() != null && sem.getTabela().todas() != null && !sem.getTabela().todas().isEmpty()) {
+        for (var e : sem.getTabela().todas().values()) {
+            System.out.printf("  %-12s : %-7s @%d:%d\n",
+                    e.nome, e.tipo, e.linha, e.coluna);
         }
+    } else {
+        System.out.println("  (vazia ou não construída nesta etapa)");
+    }
 
-        // DIAGNÓSTICOS (léxico da coleta + léxico do parsing + sintático + semântico)
+    // DIAGNÓSTICOS
     List<Diagnostico> all = new ArrayList<>();
     all.addAll(diagsLexColeta);
     all.addAll(diagsLex);
     all.addAll(diagsSint);
     all.addAll(diagsSem);
 
-    // remover duplicados (mesmo texto de diagnóstico)
+    // Remove duplicados
     List<Diagnostico> allUnique = new ArrayList<>();
     java.util.Set<String> seen = new java.util.LinkedHashSet<>();
     for (Diagnostico d : all) {
-        String key = d.toString(); // já contém tipo, código, linha, coluna e lexema
+        String key = d.toString();
         if (seen.add(key)) {
             allUnique.add(d);
         }
@@ -158,7 +155,6 @@ public class Main {
         }
     }
 
-    // RESUMO + retorno (exit code será tratado no main)
     int cLex = 0, cSin = 0, cSem = 0;
     for (Diagnostico d : allUnique) {
         switch (d.getTipo()) {
@@ -173,29 +169,18 @@ public class Main {
     System.out.printf("  LEXICO: %d  SINTATICO: %d  SEMANTICO: %d  TOTAL: %d\n",
             cLex, cSin, cSem, total);
 
-
-        // --- GERAÇÃO DE CÓDIGO INTERMEDIÁRIO (TAC) ---
-    // Somente se não houver nenhum erro (léxico, sintático ou semântico)
+    // --- GERAÇÃO DE CÓDIGO INTERMEDIÁRIO (TAC) — SOMENTE COMENTADO ---
     if (total == 0) {
         GeradorTAC gerador = new GeradorTAC();
-        List<TacInstr> tac = gerador.gerar(programa); // 'programa' é o nó raiz da AST
-
-        if (!tac.isEmpty()) {
-            System.out.println(">>> CODIGO INTERMEDIARIO (TAC)");
-            for (TacInstr instr : tac) {
-                System.out.println("  " + instr);
-            }
-        } else {
-            System.out.println(">>> CODIGO INTERMEDIARIO (TAC)");
-            System.out.println("  (nenhuma instrucao gerada nesta etapa)");
-        }
+        List<TacInstr> tac = gerador.gerar(programa);
+        np.printTacWithNarration(tac);
     }
 
     return total > 0;
 
     }
 
-    // -------- utilidades leves (não criamos novas classes) --------
+    // -------- utilidades --------
 
     private static boolean isPalavraReservada(TokenTipo tp) {
         return switch (tp) {
