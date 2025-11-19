@@ -2,7 +2,7 @@
 
 **Símbolo inicial:** `<programa>`
 
-## Terminais (tokens do seu léxico)
+## Terminais (tokens do léxico)
 START, END, ABRE_PAR, FECHA_PAR, VIRGULA, PONTO_VIRG, OP_ATRIB,
 KW_SE, KW_ENTAO, KW_SENAO, KW_ENQUANTO,
 KW_INTEIRO, KW_REAL, KW_CARACTER,

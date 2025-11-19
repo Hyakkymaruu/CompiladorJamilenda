@@ -1,0 +1,10 @@
+$
+inteiro a, b, c, d;
+real r;
+
+a = 7;
+b = 2;
+c = a + b;
+d = a RESTO b;
+r = 3.5 * b;
+$.

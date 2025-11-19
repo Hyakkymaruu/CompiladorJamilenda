@@ -1,0 +1,22 @@
+$
+inteiro x, y, contador;
+real r, media;
+caracter ch;
+
+x = 5;
+y = 10;
+contador = 0;
+r = 2.5;
+media = 0.0;
+
+enquanto ((x <= y) E (contador < 5))
+  x = x + 1;
+
+se (x >= y) entao
+  media = (x + y) / 2.0;
+senao
+  media = media + 1.0;
+
+se ((x != y) OU (x > 0)) entao
+  contador = contador RESTO 3;
+$.

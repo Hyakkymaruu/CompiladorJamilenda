@@ -1,0 +1,15 @@
+$
+inteiro i, limite, soma;
+real fator;
+
+i = 0;
+limite = 3;
+soma = 0;
+fator = 1.0;
+
+enquanto (i < limite)
+  i = i + 1;
+
+se (i == limite) entao
+  soma = soma + i;
+$.
