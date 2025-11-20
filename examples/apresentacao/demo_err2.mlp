@@ -3,16 +3,16 @@ inteiro a, b;
 real r;
 
 a = 1;
-b = 2             // falta ';' aqui
+b = 2             
 r = 3.0;
 
-a = a @ 1;        // '@' deve virar token INVALIDO no léxico
+a = a @ 1;        
 
-se a < b          // 'se' sem 'entao'
+se a < b          
   a = a + 1;
 ;
 
-enquanto a + r    // condição não booleana (expressão aritmética)
+enquanto a + r   
   a = a + 1;
 ;
 

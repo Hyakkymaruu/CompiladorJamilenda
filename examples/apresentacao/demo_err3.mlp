@@ -4,7 +4,7 @@ real r;
 caracter ch, e;
 
 a = 10;
-b = 2;
+b = 2
 r = 3.5;
 
 a = r;

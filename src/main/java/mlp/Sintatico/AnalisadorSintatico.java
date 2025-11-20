@@ -73,13 +73,19 @@ public class AnalisadorSintatico {
         }
     }
 
-    /** Sincroniza especificamente após erro em declaração:
-     * para em ';' **ou** em tokens que iniciam **comando** (IDENT, SE, ENQUANTO), ou em END/EOF.
-     * Se encontrar ';', consome; se encontrar início de comando, NÃO consome (deixa para o próximo passo). */
+    /**
+     * Sincroniza especificamente após erro em declaração:
+     * para em ';' ou em tokens que iniciam comando (IDENT, SE, ENQUANTO), ou em END/EOF.
+     * Se encontrar ';', consome; se encontrar início de comando, NÃO consome
+     * (deixa para o próximo passo).
+     */
     private void syncDeclFimOuInicioComando() {
         while (true) {
             TokenTipo tp = atual.getTipo();
-            if (tp == TokenTipo.PONTO_VIRG) { aceita(TokenTipo.PONTO_VIRG); return; }
+            if (tp == TokenTipo.PONTO_VIRG) {
+                aceita(TokenTipo.PONTO_VIRG);
+                return;
+            }
             if (tp == TokenTipo.IDENT
              || tp == TokenTipo.KW_SE
              || tp == TokenTipo.KW_ENQUANTO
@@ -117,10 +123,11 @@ public class AnalisadorSintatico {
                 AstNode c = parseComando();
                 if (c != null) prog.addFilho(c);
             } else {
+                // token inesperado no corpo do programa
                 emitir(1003, "esperava fim de programa '$.'", atual);
                 syncAteFimComando();
                 if (aceita(TokenTipo.PONTO_VIRG)) {
-                    // ok
+                    // ok, consumiu um ';' perdido
                 } else if (atual.getTipo() == TokenTipo.END || atual.getTipo() == TokenTipo.EOF) {
                     break;
                 } else {
@@ -170,7 +177,6 @@ public class AnalisadorSintatico {
         if (!aceita(TokenTipo.PONTO_VIRG)) {
             // faltou ';' na declaração
             emitir(1006, "esperava ';' ao final da declaração", atual);
-            // *** PATCH: sincronização que NÃO consome o IDENT de próximo comando ***
             syncDeclFimOuInicioComando();
         }
 
@@ -239,7 +245,6 @@ public class AnalisadorSintatico {
         if (!aceita(TokenTipo.OP_ATRIB)) {
             // Erro: faltou '='
             emitir(1015, "esperava '=' na atribuição", atual);
-            // Opcionalmente marcamos um fator inválido em expressão
             emitir(1016, "fator inválido em expressão", atual);
 
             // Recuperação: consumir até o fim do comando
@@ -275,7 +280,7 @@ public class AnalisadorSintatico {
         // ')' — sempre checar e diagnosticar (não parar)
         if (!aceita(TokenTipo.FECHA_PAR)) {
             emitir(1013, "esperava ')' após condição", atual);
-            // pequena recuperação: consome tudo até achar ')' ou palavra-chave seguinte
+            // pequena recuperação
             while (atual.getTipo() != TokenTipo.FECHA_PAR
                 && atual.getTipo() != TokenTipo.KW_ENTAO
                 && atual.getTipo() != TokenTipo.KW_SENAO
@@ -291,7 +296,6 @@ public class AnalisadorSintatico {
         // 'entao' — sempre checar e diagnosticar (não parar)
         if (!aceita(TokenTipo.KW_ENTAO)) {
             emitir(1014, "esperava 'entao'", atual);
-            // não consumir aqui; deixa seguir para tentar ler próximo comando
         }
 
         // Then (um comando)
@@ -300,7 +304,6 @@ public class AnalisadorSintatico {
             AstNode c = parseComando();
             if (c != null) thenBlk.addFilho(c);
         } else {
-            // nada inicia comando — registre e siga
             emitir(1001, "comando inválido", atual);
         }
         cmdSe.addFilho(thenBlk);
