@@ -239,6 +239,11 @@ public class AnalisadorSemantico {
                 TipoSimples b = tipoExpr(e.getFilhos().get(1));
                 return promoverSoma(a, b, e);
             }
+            case "OpMenos" -> {
+                TipoSimples a = tipoExpr(e.getFilhos().get(0));
+                TipoSimples b = tipoExpr(e.getFilhos().get(1));
+                return promoverSubtracao(a, b, e);
+            }
             case "OpMult", "OpDiv" -> {
                 TipoSimples a = tipoExpr(e.getFilhos().get(0));
                 TipoSimples b = tipoExpr(e.getFilhos().get(1));
@@ -345,6 +350,21 @@ public class AnalisadorSemantico {
     }
 
     private TipoSimples promoverSoma(TipoSimples a, TipoSimples b, AstNode no) {
+        if (!ehNumerico(a) || !ehNumerico(b)) {
+            Token t = no.getToken();
+            diagnosticos.add(new Diagnostico(
+                Tipo.SEMANTICO, SEM_TIPO_INCOMPATIVEL,
+                "soma requer operandos numéricos",
+                (t != null ? t.getLinha() : 0),
+                (t != null ? t.getColuna() : 0),
+                null
+            ));
+            return TipoSimples.ERRO;
+        }
+        return (a == TipoSimples.REAL || b == TipoSimples.REAL) ? TipoSimples.REAL : TipoSimples.INT;
+    }
+
+    private TipoSimples promoverSubtracao(TipoSimples a, TipoSimples b, AstNode no) {
         if (!ehNumerico(a) || !ehNumerico(b)) {
             Token t = no.getToken();
             diagnosticos.add(new Diagnostico(

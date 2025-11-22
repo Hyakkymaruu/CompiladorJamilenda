@@ -25,7 +25,7 @@ public class NarratedPrinter {
     public void printTokensWithNarration(List<Token> tokens) {
         if (tokens == null || tokens.isEmpty()) return;
 
-        out.println(">>> TOKENS (com comentários)");
+        out.println(">>> TOKENS ");
         for (Token tk : tokens) {
             String base = String.format("  %-12s %-12s @%d:%d",
                     tk.getTipo().name(), "'" + tk.getLexema() + "'",
@@ -53,6 +53,7 @@ public class NarratedPrinter {
             case NUM_REAL:     return "Constante real.";
             case OP_ATRIB:     return "Atribuição (=).";
             case OP_MAIS:      return "Operador soma (+).";
+            case OP_MENOS:     return "Operador subtracao (-).";
             case OP_MULT:      return "Operador multiplicação (*).";
             case OP_DIV:       return "Operador divisão (/).";
             case OP_RESTO:     return "Operador resto (RESTO).";
@@ -86,7 +87,7 @@ public class NarratedPrinter {
     public void printAstWithNarration(AstNode raiz) {
         if (raiz == null) return;
 
-        out.println(">>> AST (com comentários explicativos)");
+        out.println(">>> AST ");
         narrarAst(raiz, 0);
         out.println();
     }
@@ -143,6 +144,7 @@ public class NarratedPrinter {
             case "OpOU":          return "Disjunção lógica (OR) entre duas condições.";
 
             case "OpMais":        return "Soma aritmética.";
+            case "OpMenos":        return "Subtração aritmética.";
             case "OpMult":        return "Multiplicação aritmética.";
             case "OpDiv":         return "Divisão aritmética.";
             case "OpResto":       return "Resto de divisão inteira (mod).";
@@ -156,13 +158,13 @@ public class NarratedPrinter {
     // ============================================================
     public void printTacWithNarration(List<TacInstr> tac) {
         if (tac == null || tac.isEmpty()) {
-            out.println(">>> CODIGO INTERMEDIARIO (TAC)");
+            out.println(">>> CODIGO INTERMEDIARIO (TAC) ");
             out.println("  (nenhuma instrucao gerada nesta etapa)");
             out.println();
             return;
         }
 
-        out.println(">>> CODIGO INTERMEDIARIO (TAC)");
+        out.println(">>> CODIGO INTERMEDIARIO (TAC) ");
 
         for (TacInstr instr : tac) {
             String raw = safeToString(instr);          // ex.: "LOADI t0, 7"

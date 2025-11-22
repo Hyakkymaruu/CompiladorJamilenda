@@ -1,10 +1,11 @@
 $
-inteiro a, b, c, d;
+inteiro a, b, c, d, e;
 real r;
 
 a = 7;
 b = 2;
 c = a + b;
 d = a RESTO b;
+e = a - d;
 r = 3.5 * b;
 $.

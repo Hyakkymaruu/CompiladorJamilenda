@@ -1,10 +1,11 @@
 $
-inteiro a;
+inteiro a, b;
 real r;
-inteiro a;        // redeclaração de 'a' (mesmo nome)
 
-a = 3.5;         // atribuição de real para inteiro
-r = a RESTO r;   // RESTO com operando real (r)
+a = 10;
+b = 2;
+a = 5.;
+r = .5;
+x@ = 3;
 
-y = a + 1;       // uso de variável não declarada 'y'
 $.

@@ -30,6 +30,7 @@ public enum TokenTipo {
 
     // Operadores aritméticos
     OP_MAIS,        // +
+    OP_MENOS,       // -
     OP_MULT,        // *
     OP_DIV,         // /
     OP_RESTO,       // RESTO

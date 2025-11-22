@@ -1,24 +1,15 @@
 $
-inteiro i, limite;
-real acumulador;
-caracter flag;
+inteiro a;
+real r;
+caracter ch;
 
-i = 0;
-limite = 10;
-acumulador = 0;
+a = 0;
+r = 1.5;
 
-enquanto (i < limite)
-  se i RESTO 2 == 0 entao   // ok para RESTO, mas expressão mais complexa
-    acumulador = acumulador + 1.5;
-  senao
-    x = x + 1;              // 'x' não declarada
-  ;
-;
-
-se (flag) entao             // 'flag' é CARACTER usado como booleano
-  limite = 3.5;             // REAL atribuído a inteiro
-senao
-  flag = 1;                 // INT atribuído a CARACTER
-;
+enquanto (a < 10 E NAO (r))
+  se (a == ch OU b > 0)
+  entao
+    ch = 1;
+    a = a + '@';
 
 $.

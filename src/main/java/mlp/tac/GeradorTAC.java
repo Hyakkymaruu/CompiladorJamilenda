@@ -171,6 +171,13 @@ public class GeradorTAC {
                 code.add(TacInstr.add(t, a, b));
                 yield t;
             }
+            case "OpMenos" -> {
+                String a = genExpr(e.getFilhos().get(0));
+                String b = genExpr(e.getFilhos().get(1));
+                String t = newTemp();
+                code.add(TacInstr.sub(t, a, b));
+                yield t;
+            }
             case "OpMult" -> {
                 String a = genExpr(e.getFilhos().get(0));
                 String b = genExpr(e.getFilhos().get(1));

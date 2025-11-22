@@ -1,19 +1,17 @@
 $
-inteiro a, b;
+inteiro a, b
 real r;
 
-a = 1;
-b = 2             // falta ';' aqui
-r = 3.0;
+a = 10
+b  2;
 
-a = a @ 1;        // '@' deve virar token INVALIDO no léxico
-
-se a < b          // 'se' sem 'entao'
+se (a < b
+entao
+  r = a + 1;
+senao
   a = a + 1;
-;
 
-enquanto a + r    // condição não booleana (expressão aritmética)
+enquanto (a < 100))
   a = a + 1;
-;
 
 $.
