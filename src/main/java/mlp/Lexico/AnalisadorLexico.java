@@ -60,6 +60,7 @@ public class AnalisadorLexico {
             case ',' -> { advance(); return tok(TokenTipo.VIRGULA, ","); }
             case ';' -> { advance(); return tok(TokenTipo.PONTO_VIRG, ";"); }
             case '+' -> { advance(); return tok(TokenTipo.OP_MAIS, "+"); }
+            case '-' -> { advance(); return tok(TokenTipo.OP_MENOS, "-"); }
             case '*' -> { advance(); return tok(TokenTipo.OP_MULT, "*"); }
             case '/' -> { advance(); return tok(TokenTipo.OP_DIV, "/"); }
             case '=' -> {

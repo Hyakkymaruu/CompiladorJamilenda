@@ -544,20 +544,38 @@ public class AnalisadorSintatico {
         AstNode left = parseExprMul();
         if (left == null) return null;
 
-        while (atual.getTipo() == TokenTipo.OP_MAIS) {
-            Token t = atual; aceita(TokenTipo.OP_MAIS);
-            AstNode bin = new AstNode("OpMais", t);
+        while (atual.getTipo() == TokenTipo.OP_MAIS
+            || atual.getTipo() == TokenTipo.OP_MENOS) {
+
+            Token t = atual;
+
+            if (atual.getTipo() == TokenTipo.OP_MAIS) {
+                aceita(TokenTipo.OP_MAIS);
+            } else {
+                aceita(TokenTipo.OP_MENOS);
+            }
+
+            // Decide o nome do nó pelo operador
+            String nomeOp = (t.getTipo() == TokenTipo.OP_MAIS)
+                    ? "OpMais"
+                    : "OpMenos";
+
+            AstNode bin = new AstNode(nomeOp, t);
             bin.addFilho(left);
+
             AstNode right = parseExprMul();
             if (right == null) {
                 bin.addFilho(new AstNode("FatorInvalido", atual));
                 return bin;
             }
+
             bin.addFilho(right);
             left = bin;
         }
+
         return left;
     }
+
 
     private AstNode parseExprMul() {
         AstNode left = parseFator();
