@@ -1,12 +1,12 @@
-/home/tiqnito/Documents/CompiladorJamilenda/src/main/java/mlp/relato/NarratedPrinter.java
-/home/tiqnito/Documents/CompiladorJamilenda/src/main/java/mlp/Erros/Diagnostico.java
-/home/tiqnito/Documents/CompiladorJamilenda/src/main/java/mlp/Semantico/AnalisadorSemantico.java
-/home/tiqnito/Documents/CompiladorJamilenda/src/main/java/mlp/Simbolos/TabelaSimbolos.java
-/home/tiqnito/Documents/CompiladorJamilenda/src/main/java/mlp/Lexico/TokenTipo.java
-/home/tiqnito/Documents/CompiladorJamilenda/src/main/java/mlp/Sintatico/AnalisadorSintatico.java
-/home/tiqnito/Documents/CompiladorJamilenda/src/main/java/mlp/Lexico/AnalisadorLexico.java
-/home/tiqnito/Documents/CompiladorJamilenda/src/main/java/mlp/tac/TacInstr.java
-/home/tiqnito/Documents/CompiladorJamilenda/src/main/java/mlp/Main.java
-/home/tiqnito/Documents/CompiladorJamilenda/src/main/java/mlp/ast/AstNode.java
-/home/tiqnito/Documents/CompiladorJamilenda/src/main/java/mlp/tac/GeradorTAC.java
-/home/tiqnito/Documents/CompiladorJamilenda/src/main/java/mlp/Lexico/Token.java
+/mnt/c/Users/CSF/Documents/Facul/10 semestre/Compiladores II/ProjetoCompiladoresII/compilador-mlp Backup/compilador-mlp/src/main/java/mlp/Erros/Diagnostico.java
+/mnt/c/Users/CSF/Documents/Facul/10 semestre/Compiladores II/ProjetoCompiladoresII/compilador-mlp Backup/compilador-mlp/src/main/java/mlp/Lexico/TokenTipo.java
+/mnt/c/Users/CSF/Documents/Facul/10 semestre/Compiladores II/ProjetoCompiladoresII/compilador-mlp Backup/compilador-mlp/src/main/java/mlp/tac/TacInstr.java
+/mnt/c/Users/CSF/Documents/Facul/10 semestre/Compiladores II/ProjetoCompiladoresII/compilador-mlp Backup/compilador-mlp/src/main/java/mlp/Lexico/AnalisadorLexico.java
+/mnt/c/Users/CSF/Documents/Facul/10 semestre/Compiladores II/ProjetoCompiladoresII/compilador-mlp Backup/compilador-mlp/src/main/java/mlp/Simbolos/TabelaSimbolos.java
+/mnt/c/Users/CSF/Documents/Facul/10 semestre/Compiladores II/ProjetoCompiladoresII/compilador-mlp Backup/compilador-mlp/src/main/java/mlp/relato/NarratedPrinter.java
+/mnt/c/Users/CSF/Documents/Facul/10 semestre/Compiladores II/ProjetoCompiladoresII/compilador-mlp Backup/compilador-mlp/src/main/java/mlp/Sintatico/AnalisadorSintatico.java
+/mnt/c/Users/CSF/Documents/Facul/10 semestre/Compiladores II/ProjetoCompiladoresII/compilador-mlp Backup/compilador-mlp/src/main/java/mlp/Lexico/Token.java
+/mnt/c/Users/CSF/Documents/Facul/10 semestre/Compiladores II/ProjetoCompiladoresII/compilador-mlp Backup/compilador-mlp/src/main/java/mlp/Semantico/AnalisadorSemantico.java
+/mnt/c/Users/CSF/Documents/Facul/10 semestre/Compiladores II/ProjetoCompiladoresII/compilador-mlp Backup/compilador-mlp/src/main/java/mlp/ast/AstNode.java
+/mnt/c/Users/CSF/Documents/Facul/10 semestre/Compiladores II/ProjetoCompiladoresII/compilador-mlp Backup/compilador-mlp/src/main/java/mlp/Main.java
+/mnt/c/Users/CSF/Documents/Facul/10 semestre/Compiladores II/ProjetoCompiladoresII/compilador-mlp Backup/compilador-mlp/src/main/java/mlp/tac/GeradorTAC.java
