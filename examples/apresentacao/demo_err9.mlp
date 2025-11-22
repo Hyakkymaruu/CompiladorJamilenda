@@ -1,0 +1,8 @@
+$
+caracter ch;
+
+ch = 'AB';
+ch = '1a';
+ch = ' ';
+
+$.

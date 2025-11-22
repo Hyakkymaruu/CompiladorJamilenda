@@ -25,7 +25,7 @@ public class NarratedPrinter {
     public void printTokensWithNarration(List<Token> tokens) {
         if (tokens == null || tokens.isEmpty()) return;
 
-        out.println(">>> TOKENS (com comentários)");
+        out.println(">>> TOKENS ");
         for (Token tk : tokens) {
             String base = String.format("  %-12s %-12s @%d:%d",
                     tk.getTipo().name(), "'" + tk.getLexema() + "'",
@@ -85,7 +85,7 @@ public class NarratedPrinter {
     public void printAstWithNarration(AstNode raiz) {
         if (raiz == null) return;
 
-        out.println(">>> AST (com comentários explicativos)");
+        out.println(">>> AST ");
         narrarAst(raiz, 0);
         out.println();
     }
@@ -154,13 +154,13 @@ public class NarratedPrinter {
     // ============================================================
     public void printTacWithNarration(List<TacInstr> tac) {
         if (tac == null || tac.isEmpty()) {
-            out.println(">>> CODIGO INTERMEDIARIO (TAC) — comentado");
+            out.println(">>> CODIGO INTERMEDIARIO (TAC) ");
             out.println("  (nenhuma instrucao gerada nesta etapa)");
             out.println();
             return;
         }
 
-        out.println(">>> CODIGO INTERMEDIARIO (TAC) — comentado");
+        out.println(">>> CODIGO INTERMEDIARIO (TAC) ");
 
         for (TacInstr instr : tac) {
             String raw = safeToString(instr);          // ex.: "LOADI t0, 7"

@@ -1,10 +1,11 @@
 $
-inteiro a;
+inteiro a, b;
 real r;
-inteiro a;       
 
-a = 3.5;         
-r = a RESTO r;   
+a = 10;
+b = 2;
+a = 5.;
+r = .5;
+x@ = 3;
 
-y = a + 1;     
 $.
