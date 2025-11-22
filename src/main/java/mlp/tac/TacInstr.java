@@ -7,7 +7,7 @@ public class TacInstr {
         ADD, ADDI, SUB, SUBI, MUL, DIV, REM,
         CMPGT, CMPLT, CMPEQ, CMPLE, CMPGE, CMPNE,
         JMP, JMPFALSE, JMPTRUE,
-        LABEL, NOP
+        LABEL, PRINT, NOP
     }
 
     public final Op op;
@@ -94,6 +94,10 @@ public class TacInstr {
         return new TacInstr(Op.JMP, label, null, null, null);
     }
 
+    public static TacInstr print(String label) {
+        return new TacInstr(Op.PRINT, label, null, null, null);
+    }
+
     public static TacInstr jmpFalse(String cond, String label) {
         return new TacInstr(Op.JMPFALSE, cond, label, null, null);
     }
@@ -121,6 +125,7 @@ public class TacInstr {
                 // 2 operandos: OP a1, a2
                 yield String.format("%s %s, %s", op.name(), a1, a2);
             }
+            case PRINT -> String.format("PRINT %s", a1);
             case ADD, ADDI, SUB, SUBI, MUL, DIV, REM,
                  CMPGT, CMPLT, CMPEQ, CMPLE, CMPGE, CMPNE -> {
                 // 3 operandos: OP a1, a2, a3

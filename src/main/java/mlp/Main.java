@@ -13,6 +13,7 @@ import mlp.Sintatico.AnalisadorSintatico;
 import mlp.Semantico.AnalisadorSemantico;
 import mlp.ast.AstNode;
 import mlp.tac.GeradorTAC;
+import mlp.tac.InterpretadorTAC;
 import mlp.tac.TacInstr;
 import mlp.relato.NarratedPrinter;
 
@@ -175,6 +176,16 @@ public class Main {
 
             // Imprime TAC comentado
             np.printTacWithNarration(tac);
+
+            // Executa o código TAC
+            System.out.println("SAIDA DO PROGRAMA");
+            try {
+            InterpretadorTAC interpretador = new InterpretadorTAC();
+            interpretador.executar(tac);
+            } catch (Exception e) {
+                System.err.println("deu erro aqui:");
+                e.printStackTrace();
+            }
         }
 
         return total > 0;
@@ -184,7 +195,7 @@ public class Main {
 
     private static boolean isPalavraReservada(TokenTipo tp) {
         return switch (tp) {
-            case KW_SE, KW_ENTAO, KW_SENAO, KW_ENQUANTO,
+            case KW_SE, KW_ENTAO, KW_SENAO, KW_ENQUANTO, KW_ESCREVA,
                  KW_INTEIRO, KW_REAL, KW_CARACTER,
                  KW_E, KW_OU, KW_NAO -> true;
             default -> false;

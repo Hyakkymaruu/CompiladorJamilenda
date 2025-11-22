@@ -321,6 +321,7 @@ public class AnalisadorLexico {
         KEYWORDS.put("entao",    TokenTipo.KW_ENTAO);
         KEYWORDS.put("senao",    TokenTipo.KW_SENAO);
         KEYWORDS.put("enquanto", TokenTipo.KW_ENQUANTO);
+        KEYWORDS.put("escreva",  TokenTipo.KW_ESCREVA);
 
         KEYWORDS.put("E",        TokenTipo.KW_E);
         KEYWORDS.put("OU",       TokenTipo.KW_OU);

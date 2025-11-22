@@ -66,6 +66,7 @@ public class NarratedPrinter {
             case KW_ENTAO:     return "Palavra-chave 'entao'.";
             case KW_SENAO:     return "Ramo alternativo 'senao'.";
             case KW_ENQUANTO:  return "Laço 'enquanto'.";
+            case KW_ESCREVA:   return "Escreve";
             case KW_NAO:       return "Operador lógico de negação (NAO).";
             case KW_E:         return "Operador lógico E.";
             case KW_OU:        return "Operador lógico OU.";
@@ -134,6 +135,7 @@ public class NarratedPrinter {
             case "Else":          return "Bloco executado quando a condição é falsa.";
 
             case "CmdEnquanto":   return "Laço 'enquanto (cond) { corpo }'.";
+            case "CmdEscreva":    return "Escreveu";
 
             case "Rel":           return "Expressão relacional (gera valor booleano).";
             case "Nao":           return "Negação lógica de uma condição.";
@@ -154,13 +156,13 @@ public class NarratedPrinter {
     // ============================================================
     public void printTacWithNarration(List<TacInstr> tac) {
         if (tac == null || tac.isEmpty()) {
-            out.println(">>> CODIGO INTERMEDIARIO (TAC) — comentado");
+            out.println(">>> CODIGO INTERMEDIARIO (TAC)");
             out.println("  (nenhuma instrucao gerada nesta etapa)");
             out.println();
             return;
         }
 
-        out.println(">>> CODIGO INTERMEDIARIO (TAC) — comentado");
+        out.println(">>> CODIGO INTERMEDIARIO (TAC)");
 
         for (TacInstr instr : tac) {
             String raw = safeToString(instr);          // ex.: "LOADI t0, 7"

@@ -10,6 +10,7 @@ public enum TokenTipo {
     KW_ENTAO,       // entao
     KW_SENAO,       // senao
     KW_ENQUANTO,    // enquanto
+    KW_ESCREVA,     // escreva
     KW_INTEIRO,     // inteiro
     KW_REAL,        // real
     KW_CARACTER,    // caracter

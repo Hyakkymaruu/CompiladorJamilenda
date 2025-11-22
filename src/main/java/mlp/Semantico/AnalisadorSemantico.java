@@ -35,6 +35,7 @@ public class AnalisadorSemantico {
                 case "CmdAtrib"    -> analisarCmdAtrib(filho);
                 case "CmdSe"       -> analisarCmdSe(filho, 1);        // profundidade 1
                 case "CmdEnquanto" -> analisarCmdEnquanto(filho, 1);  // profundidade 1
+                case "CmdEscreva" -> analisarCmdEscreva(filho); 
                 default -> { /* ignorar outros rótulos (ex.: ComandoInvalido) */ }
             }
         }
@@ -378,5 +379,11 @@ public class AnalisadorSemantico {
         if (destino == expr) return true;
         // promoção permitida: INT -> REAL
         return (destino == TipoSimples.REAL && expr == TipoSimples.INT);
+    }
+
+    private void analisarCmdEscreva(AstNode n) {
+        if (n == null || n.getFilhos().isEmpty()) return;
+        AstNode expr = n.getFilhos().get(0);
+        tipoExpr(expr);
     }
 }
