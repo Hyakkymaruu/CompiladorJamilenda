@@ -1,18 +1,15 @@
 $
-inteiro a, b, c;
+inteiro a;
 real r;
-caracter ch, e;
+caracter ch;
 
-a = 10;
-b = 0;
-r = 3.5;
+a = 0;
+r = 1.5;
 
-a = r;
-z = a + b;
-r = ch + a;
+enquanto (a < 10 E NAO (r))
+  se (a == ch OU b > 0)
+  entao
+    ch = 1;
+    a = a + '@';
 
-se (a @ b) entao
-  r = ch + a;
-enquanto (ch < 10)
-  ch = ch + 1;
 $.

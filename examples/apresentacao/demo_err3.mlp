@@ -1,17 +1,16 @@
 $
-inteiro a, b;
+inteiro a, b, c;
 real r;
-caracter ch, e;
+caracter ch;
 
 a = 10;
-b = 2
-r = 3.5;
+b = 2;
+c = ch;
+r = a + ch;
+x = a + b;
 
-a = r;
-c = a + b;
+se (ch < a)
+entao
+  r = r + 1;
 
-se (a < d) entao
-    r = a + 1;
-enquanto (a < 100)
-    e = e + 1;
 $.
