@@ -160,7 +160,8 @@ public class AnalisadorSintatico {
     private boolean isInicioComando() {
         return atual.getTipo() == TokenTipo.IDENT
             || atual.getTipo() == TokenTipo.KW_SE
-            || atual.getTipo() == TokenTipo.KW_ENQUANTO;
+            || atual.getTipo() == TokenTipo.KW_ENQUANTO
+            || atual.getTipo() == TokenTipo.KW_ESCREVA;
     }
 
     // ---------- Declarações ----------
@@ -222,6 +223,7 @@ public class AnalisadorSintatico {
             case IDENT -> parseAtrib();
             case KW_SE -> parseSe();
             case KW_ENQUANTO -> parseEnquanto();
+            case KW_ESCREVA -> parseEscreva();
             default -> {
                 emitir(1001, "comando inválido", atual);
                 syncAteFimComando();
@@ -229,6 +231,28 @@ public class AnalisadorSintatico {
                 yield null;
             }
         };
+    }
+
+    private AstNode parseEscreva(){
+        Token t = atual;
+        aceita(TokenTipo.KW_ESCREVA);
+        AstNode cmd = new AstNode("CmdEscreva", t);
+
+        if (!aceita(TokenTipo.ABRE_PAR)) {
+            emitir(1011, "escreva: esperava '('", atual);
+        }
+
+        AstNode expr = parseExpressaoOuFatorInvalido();
+        cmd.addFilho(expr);
+
+        if (!aceita(TokenTipo.FECHA_PAR)) {
+            emitir(1012, "escreva: esperava ')'", atual);
+        }
+        if (!aceita(TokenTipo.PONTO_VIRG)) {
+            emitir(1017, "escreva: esperava ';'", atual);
+        }
+
+        return cmd;
     }
 
     /** CmdAtrib -> IDENT '=' expressao ';' */

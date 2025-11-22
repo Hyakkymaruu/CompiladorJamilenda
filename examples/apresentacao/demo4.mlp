@@ -5,7 +5,7 @@ caracter ch;
 
 x = 5;
 y = 10;
-contador = 0;
+contador = 7;
 r = 2.5;
 media = 0.0;
 
@@ -19,4 +19,5 @@ senao
 
 se ((x != y) OU (x > 0)) entao
   contador = contador RESTO 3;
+escreva(contador);
 $.

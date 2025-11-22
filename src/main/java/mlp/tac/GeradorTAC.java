@@ -34,6 +34,7 @@ public class GeradorTAC {
             case "CmdAtrib"    -> genCmdAtrib(n);
             case "CmdSe"       -> genCmdSe(n);
             case "CmdEnquanto" -> genCmdEnquanto(n);
+            case "CmdEscreva"  -> genCmdEscreva(n);
             // Decl etc: não geram código
             default -> {}
         }
@@ -129,8 +130,19 @@ public class GeradorTAC {
                 case "CmdAtrib"    -> genCmdAtrib(cmd);
                 case "CmdSe"       -> genCmdSe(cmd);
                 case "CmdEnquanto" -> genCmdEnquanto(cmd);
+                case "CmdEscreva"  -> genCmdEscreva(cmd);
                 default -> {}
             }
+        }
+    }
+
+
+    private void genCmdEscreva(AstNode cmd) {
+        if (cmd.getFilhos().isEmpty()) return;
+        AstNode expr = cmd.getFilhos().get(0);
+        String temp = genExpr(expr);
+        if (temp != null) {
+            code.add(TacInstr.print(temp));
         }
     }
 
